@@ -177,6 +177,7 @@ namespace RoboSharp
             options.EnableRestartMode |= ExtractFlag(sanitizedCmd, CopyOptions.ENABLE_RESTART_MODE, out sanitizedCmd);
             options.EnableRestartModeWithBackupFallback |= ExtractFlag(sanitizedCmd, CopyOptions.ENABLE_RESTART_MODE_WITH_BACKUP_FALLBACK, out sanitizedCmd);
             options.FatFiles |= ExtractFlag(sanitizedCmd, CopyOptions.FAT_FILES, out sanitizedCmd);
+            options.FatFileTimes |= ExtractFlag(sanitizedCmd, CopyOptions.FAT_FILE_TIMES, out sanitizedCmd);
             options.FixFileSecurityOnAllFiles |= ExtractFlag(sanitizedCmd, CopyOptions.FIX_FILE_SECURITY_ON_ALL_FILES, out sanitizedCmd);
             options.FixFileTimesOnAllFiles |= ExtractFlag(sanitizedCmd, CopyOptions.FIX_FILE_TIMES_ON_ALL_FILES, out sanitizedCmd);
             options.RemoveFileInformation |= ExtractFlag(sanitizedCmd, CopyOptions.REMOVE_FILE_INFORMATION, out sanitizedCmd);

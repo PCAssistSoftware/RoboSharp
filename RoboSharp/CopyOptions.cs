@@ -72,6 +72,7 @@ namespace RoboSharp
             EnableRestartMode = copyOptions.EnableRestartMode;
             EnableRestartModeWithBackupFallback = copyOptions.EnableRestartModeWithBackupFallback;
             FatFiles = copyOptions.FatFiles;
+            FatFileTimes = copyOptions.FatFileTimes;
             FileFilter = copyOptions.FileFilter;
             FixFileSecurityOnAllFiles = copyOptions.FixFileSecurityOnAllFiles;
             FixFileTimesOnAllFiles = copyOptions.FixFileTimesOnAllFiles;
@@ -120,6 +121,7 @@ namespace RoboSharp
         internal const string REMOVE_ATTRIBUTES = "/A-:{0} ";
         internal const string CREATE_DIRECTORY_AND_FILE_TREE = "/CREATE ";
         internal const string FAT_FILES = "/FAT ";
+        internal const string FAT_FILE_TIMES = "/FFT ";
         internal const string TURN_LONG_PATH_SUPPORT_OFF = "/256 ";
         internal const string MONITOR_SOURCE_CHANGES_LIMIT = "/MON:{0} ";
         internal const string MONITOR_SOURCE_TIME_LIMIT = "/MOT:{0} ";
@@ -434,6 +436,13 @@ namespace RoboSharp
         public virtual bool FatFiles { get; set; }
 
         /// <summary>
+        /// Assumes FAT file times (two-second precision).
+        /// [/FFT]
+        /// </summary>
+        [DefaultValue(false)]
+        public virtual bool FatFileTimes { get; set; }
+
+        /// <summary>
         /// Turns off support for very long paths (longer than 256 characters).
         /// [/256]
         /// </summary>
@@ -654,6 +663,8 @@ namespace RoboSharp
                 options.Append(CREATE_DIRECTORY_AND_FILE_TREE);
             if (FatFiles)
                 options.Append(FAT_FILES);
+            if (FatFileTimes)
+                options.Append(FAT_FILE_TIMES);
             if (TurnLongPathSupportOff)
                 options.Append(TURN_LONG_PATH_SUPPORT_OFF);
             if (MonitorSourceChangesLimit > 0)
@@ -889,6 +900,7 @@ namespace RoboSharp
             EnableRestartMode |= copyOptions.EnableRestartMode;
             EnableRestartModeWithBackupFallback |= copyOptions.EnableRestartModeWithBackupFallback;
             FatFiles |= copyOptions.FatFiles;
+            FatFileTimes |= copyOptions.FatFileTimes;
             FixFileSecurityOnAllFiles |= copyOptions.FixFileSecurityOnAllFiles;
             FixFileTimesOnAllFiles |= copyOptions.FixFileTimesOnAllFiles;
             Mirror |= copyOptions.Mirror;

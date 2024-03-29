@@ -306,6 +306,7 @@ namespace RoboSharp
                 EnableRestartMode = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.ENABLE_RESTART_MODE.Trim()),
                 EnableRestartModeWithBackupFallback = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.ENABLE_RESTART_MODE_WITH_BACKUP_FALLBACK.Trim()),
                 FatFiles = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.FAT_FILES.Trim()),
+                FatFileTimes = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.FAT_FILE_TIMES.Trim()),
                 FixFileSecurityOnAllFiles = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.FIX_FILE_SECURITY_ON_ALL_FILES.Trim()),
                 FixFileTimesOnAllFiles = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.FIX_FILE_TIMES_ON_ALL_FILES.Trim()),
                 Mirror = Flags.Any(flag => flag.Success && flag.Value == CopyOptions.MIRROR.Trim()),
