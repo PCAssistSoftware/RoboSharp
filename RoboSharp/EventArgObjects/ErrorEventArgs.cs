@@ -47,17 +47,17 @@ namespace RoboSharp
         }
 
         /// <summary>
-        /// Error Code
+        /// The error message
         /// </summary>
         public string Error { get; }
 
         /// <summary>
-        /// Error Description
+        /// Error Description or stack trace
         /// </summary>
         public string ErrorDescription { get; }
         
         /// <summary>
-        /// Error Code
+        /// The error code
         /// </summary>
         public int ErrorCode { get; }
 
@@ -85,7 +85,7 @@ namespace RoboSharp
             if (ErrorDescription.IsNullOrWhiteSpace())
                 return Error;
             else
-                return String.Format("{0}{1}{2}", Error, Environment.NewLine, ErrorDescription);
+                return $"{Error}{Environment.NewLine}{ErrorDescription}";
         }
 
         /// <summary>

@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <TargetFrameworks>
-            net452;
             net462;
             net48;
             netstandard2.0;
@@ -12,8 +11,9 @@
             net6.0;
             net8.0;
         </TargetFrameworks>
+        <NetFrameworkRegex><![CDATA[^net4[5-8][0-2]?$]]></NetFrameworkRegex>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>1.5.3</Version>
+        <Version>1.6.0</Version>
         <Copyright>Copyright 2024</Copyright>
         <Authors>Terry</Authors>
         <owners>Terry</owners>
@@ -37,11 +37,7 @@
         <None Include="..\robosharp.png" Pack="true" PackagePath="\"/>
         <None Include="..\license" Pack="true" PackagePath="\"/>
     </ItemGroup>
-
-    <PropertyGroup>
-        <NetFrameworkRegex><![CDATA[^net4[5-8][0-2]?$]]></NetFrameworkRegex>
-    </PropertyGroup>
-
+    
     <!-- Conditional Target Requirements -->
     <Choose>
         <!-- NetFramework -->

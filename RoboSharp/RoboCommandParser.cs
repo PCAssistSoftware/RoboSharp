@@ -1,7 +1,9 @@
 ﻿using RoboSharp.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -444,6 +446,28 @@ namespace RoboSharp
         #region < Helper Methods / Parsing & Trimming >
 
         /// <summary>
+        /// Check if the path is full qualified as far as robocopy is concerned
+        /// </summary>
+        /// <remarks>
+        /// Strings less than 3 characters are always false.
+        /// Strings such as 'C:' should be avoided because it can cause robocopy to use the CURRENT DIRECTORY instead of the root directory
+        /// </remarks>
+        public static bool IsPathFullyQualified(this string path)
+        {
+            if (path is null) return false;
+            if (path.Length < 3) return false; //There is no way to specify a fixed path with one character (or less).
+            if (path.Length >= 3 && IsValidDriveChar(path[0]) && path[1] == System.IO.Path.VolumeSeparatorChar && IsDirectorySeperator(path[2])) return true; //Check for standard paths. C:\
+            if (path.Length >= 3 && IsDirectorySeperator(path[0]) && IsDirectorySeperator(path[1])) return true; //This is start of a UNC path
+            return false; //Default
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsDirectorySeperator(char c) => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsValidDriveChar(char c) => c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z';
+
+        /// <summary>
         /// Trim robocopy from that beginning of the input string
         /// </summary>
         /// <returns>A StringBuilder instance that represents the trimmed string</returns>
@@ -647,8 +671,8 @@ namespace RoboSharp
                 // Validate source and destination - both must be empty, or both must be fully qualified
                 bool sourceEmpty = string.IsNullOrWhiteSpace(source);
                 bool destEmpty = string.IsNullOrWhiteSpace(dest);
-                bool sourceQualified = source.IsPathFullyQualified();
-                bool destQualified = dest.IsPathFullyQualified();
+                bool sourceQualified = IsPathFullyQualified(source);
+                bool destQualified = IsPathFullyQualified(dest);
 
                 StringBuilder commandBuilder = new StringBuilder(inputText);
 

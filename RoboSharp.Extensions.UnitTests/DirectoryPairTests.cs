@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoboSharp;
+using RoboSharp.Extensions.Helpers;
 using RoboSharp.Interfaces;
 using RoboSharp.UnitTests;
 using System;
@@ -8,7 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace RoboSharp.Extensions.UnitTests
+namespace RoboSharp.Extensions.Tests
 {
     [TestClass]
     public class DirectoryPairTests

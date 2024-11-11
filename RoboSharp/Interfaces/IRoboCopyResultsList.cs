@@ -16,7 +16,7 @@ namespace RoboSharp.Interfaces
     /// <remarks>
     /// <see href="https://github.com/tjscience/RoboSharp/wiki/IRoboCopyResultsList"/>
     /// </remarks>
-    public interface IRoboCopyResultsList : IEnumerable<RoboCopyResults>, INotifyCollectionChanged
+    public interface IRoboCopyResultsList : IResults, IEnumerable<RoboCopyResults>, INotifyCollectionChanged
     {
         #region < Properties >
 
@@ -27,20 +27,11 @@ namespace RoboSharp.Interfaces
         /// <exception cref="IndexOutOfRangeException"/>
         RoboCopyResults this[int i] { get; }
         
-        /// <inheritdoc cref="RoboCopyResultsList.DirectoriesStatistic"/>
-        IStatistic DirectoriesStatistic { get; }
-
-        /// <inheritdoc cref="RoboCopyResultsList.BytesStatistic"/>
-        IStatistic BytesStatistic { get; }
-
-        /// <inheritdoc cref="RoboCopyResultsList.FilesStatistic"/>
-        IStatistic FilesStatistic { get; }
-
         /// <inheritdoc cref="RoboCopyResultsList.SpeedStatistic"/>
         ISpeedStatistic SpeedStatistic { get; }
 
         /// <inheritdoc cref="RoboCopyResultsList.Status"/>
-        IRoboCopyCombinedExitStatus Status { get; }
+        new IRoboCopyCombinedExitStatus Status { get; }
 
         /// <inheritdoc cref="RoboCopyResultsList.Collection"/>
         IReadOnlyList<RoboCopyResults> Collection { get; }

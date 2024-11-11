@@ -24,6 +24,7 @@ namespace RoboSharp
         public class DebugMessageArgs : EventArgs
         {
             public object Message { get; set; }
+            public override string ToString() => Message.ToString();
         }
 
         [DebuggerHidden()]

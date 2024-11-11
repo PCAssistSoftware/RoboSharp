@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace RoboSharp.Extensions.UnitTests
+namespace RoboSharp.Extensions.Tests
 {
     [TestClass]
     public class CachedEnumerableTests

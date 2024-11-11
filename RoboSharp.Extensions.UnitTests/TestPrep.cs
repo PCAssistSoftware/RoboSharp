@@ -9,12 +9,19 @@ using RoboSharp.Interfaces;
 using RoboSharp.UnitTests;
 using TestSetup = RoboSharp.UnitTests.Test_Setup;
 
-namespace RoboSharp.Extensions.UnitTests
+namespace RoboSharp.Extensions.Tests
 {
     public static class TestPrep
     {
         public static string SourceDirPath => RoboSharp.UnitTests.Test_Setup.Source_Standard;
         public static string DestDirPath => RoboSharp.UnitTests.Test_Setup.TestDestination;
+
+        public static readonly string AppDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RoboSharpUnitTesting");
+
+        static TestPrep()
+        {
+            Directory.CreateDirectory(AppDataFolder);
+        }
 
         /// <inheritdoc cref="TestSetup.ClearOutTestDestination"/>
         public static void CleanDestination() => TestSetup.ClearOutTestDestination();
@@ -180,6 +187,28 @@ namespace RoboSharp.Extensions.UnitTests
             }
         }
 
+        /// <summary>
+        /// Gets a randomly generated fully qualified path for a file within the Test_Files directory in the unit test output folder
+        /// </summary>
+        public static string GetRandomPath(bool randomSubFolder = false)
+        {
+            if (randomSubFolder)
+                return new FileInfo(Path.Combine(AppDataFolder, Path.GetRandomFileName().Replace(".",""), Path.GetRandomFileName())).FullName;
+            else
+                return new FileInfo(Path.Combine(AppDataFolder, Path.GetRandomFileName())).FullName;
+        }
 
+        /// <summary>
+        /// Cleans the AppData directory which is used for various unit tests
+        /// </summary>
+        public static void CleanAppData()
+        {
+            if (Directory.Exists(AppDataFolder))
+            {
+                Directory.Delete(AppDataFolder, true); // delete children
+                Directory.CreateDirectory(AppDataFolder);
+            }
+        }
+       
     }
 }

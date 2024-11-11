@@ -19,6 +19,8 @@ namespace RoboSharp.Results
     /// </remarks>
     public partial class SpeedStatistic : INotifyPropertyChanged, ISpeedStatistic
     {
+        internal const long MegaBytePerMinDivisor = 1024 * 1024;
+
         /// <summary>
         /// Create new SpeedStatistic
         /// </summary>
@@ -43,14 +45,14 @@ namespace RoboSharp.Results
             if (fileLength < 0) throw new ArgumentException("File Length cannot be less than 0", nameof(fileLength));
             if (copyTime.TotalSeconds <= 0) throw new ArgumentException("Copy Time cannot be less than or equal to 0", nameof(copyTime));
 
-            BytesPerSec = fileLength / (decimal)copyTime.TotalSeconds;
-            MegaBytesPerMin = (fileLength / 1024 / 1024) / (decimal)(copyTime.TotalSeconds / 60);
+            BytesPerSec = Decimal.Round(fileLength / (decimal)copyTime.TotalSeconds);
+            MegaBytesPerMin = Decimal.Round(fileLength / MegaBytePerMinDivisor / (decimal)copyTime.TotalMinutes, 3);
         }
 
         #region < Private & Protected Members >
 
-        private decimal BytesPerSecField;
-        private decimal MegaBytesPerMinField;
+        private decimal _bytesPerSecond;
+        private decimal _megabytesPerMinute;
 
         /// <summary> This toggle Enables/Disables firing the <see cref="PropertyChanged"/> Event to avoid firing it when doing multiple consecutive changes to the values </summary>
         protected bool EnablePropertyChangeEvent { get; set; } = true;
@@ -68,12 +70,12 @@ namespace RoboSharp.Results
         /// <inheritdoc cref="ISpeedStatistic.BytesPerSec"/>
         public virtual decimal BytesPerSec
         {
-            get => BytesPerSecField;
+            get => _bytesPerSecond;
             protected set
             {
-                if (BytesPerSecField != value)
+                if (_bytesPerSecond != value)
                 {
-                    BytesPerSecField = value;
+                    _bytesPerSecond = value;
                     if (EnablePropertyChangeEvent) OnPropertyChange(nameof(BytesPerSec));
                 }
             }
@@ -82,12 +84,12 @@ namespace RoboSharp.Results
         /// <inheritdoc cref="ISpeedStatistic.MegaBytesPerMin"/>
         public virtual decimal MegaBytesPerMin
         {
-            get => MegaBytesPerMinField;
+            get => _megabytesPerMinute;
             protected set
             {
-                if (MegaBytesPerMinField != value)
+                if (_megabytesPerMinute != value)
                 {
-                    MegaBytesPerMinField = value;
+                    _megabytesPerMinute = value;
                     if (EnablePropertyChangeEvent) OnPropertyChange(nameof(MegaBytesPerMin));
                 }
             }
@@ -195,6 +197,42 @@ namespace RoboSharp.Results
     /// </summary>
     public sealed class AverageSpeedStatistic : SpeedStatistic
     {
+        private bool _recalcBPS;
+        private bool _recalcMB;
+        private long _divisor = 0; // Total number of SpeedStats that were combined to produce the Combined_* values
+        private decimal _combinedBytesPerSecond = 0;        //Sum of all <see cref="SpeedStatistic.BytesPerSec"/>
+        private decimal _combinedMegabytesPerMinute = 0;    //Sum of all <see cref="SpeedStatistic.MegaBytesPerMin"/>
+
+        /// <inheritdoc/>
+        public override decimal BytesPerSec
+        {
+            get
+            {
+                if (_recalcBPS)
+                {
+                    _recalcBPS = false;
+                    base.BytesPerSec = _divisor < 1 ? 0 : Math.Round(_combinedBytesPerSecond / _divisor, 3);
+                }
+                return base.BytesPerSec;
+            }
+            protected set => base.BytesPerSec = value;
+        }
+
+        /// <inheritdoc/>
+        public override decimal MegaBytesPerMin
+        {
+            get
+            {
+                if (_recalcMB)
+                {
+                    _recalcMB = false;
+                    base.MegaBytesPerMin = _divisor < 1 ? 0 : Math.Round(_combinedMegabytesPerMinute / _divisor, 3);
+                }
+                return base.MegaBytesPerMin;
+            }
+            protected set => base.MegaBytesPerMin = value;
+        }
+
         #region < Constructors >
 
         /// <summary>
@@ -212,9 +250,9 @@ namespace RoboSharp.Results
         /// </param>
         public AverageSpeedStatistic(ISpeedStatistic speedStat) : base()
         {
-            Divisor = 1;
-            Combined_BytesPerSec = speedStat.BytesPerSec;
-            Combined_MegaBytesPerMin = speedStat.MegaBytesPerMin;
+            _divisor = 1;
+            _combinedBytesPerSecond = speedStat.BytesPerSec;
+            _combinedMegabytesPerMinute = speedStat.MegaBytesPerMin;
             CalculateAverage();
         }
 
@@ -233,44 +271,26 @@ namespace RoboSharp.Results
         /// </summary>
         public AverageSpeedStatistic(AverageSpeedStatistic stat) : base(stat)
         {
-            Divisor = stat.Divisor;
-            Combined_BytesPerSec = stat.BytesPerSec;
-            Combined_MegaBytesPerMin = stat.MegaBytesPerMin;
+            _divisor = stat._divisor;
+            _combinedBytesPerSecond = stat.BytesPerSec;
+            _combinedMegabytesPerMinute = stat.MegaBytesPerMin;
         }
 
         #endregion
 
-        #region < Fields >
-
-        /// <summary> Sum of all <see cref="SpeedStatistic.BytesPerSec"/> </summary>
-        private decimal Combined_BytesPerSec = 0;
-
-        /// <summary>  Sum of all <see cref="SpeedStatistic.MegaBytesPerMin"/> </summary>
-        private decimal Combined_MegaBytesPerMin = 0;
-
-        /// <summary> Total number of SpeedStats that were combined to produce the Combined_* values </summary>
-        private long Divisor = 0;
-
-        #endregion
-
-        #region < Public Methods >
-
         /// <inheritdoc cref="ICloneable.Clone"/>
         public override SpeedStatistic Clone() => new AverageSpeedStatistic(this);
-
-        #endregion
-
-        #region < Reset Value Methods >
 
         /// <summary>
         /// Set the values for this object to 0
         /// </summary>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
         public void Reset()
         {
-            Combined_BytesPerSec = 0;
-            Combined_MegaBytesPerMin = 0;
-            Divisor = 0;
+            _combinedBytesPerSecond = 0;
+            _combinedMegabytesPerMinute = 0;
+            _divisor = 0;
+            _recalcBPS = false;
+            _recalcMB = false;
             BytesPerSec = 0;
             MegaBytesPerMin = 0;
         }
@@ -278,7 +298,6 @@ namespace RoboSharp.Results
         /// <summary>
         /// Set the values for this object to 0
         /// </summary>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
         internal void Reset(bool enablePropertyChangeEvent)
         {
             EnablePropertyChangeEvent = enablePropertyChangeEvent;
@@ -286,14 +305,24 @@ namespace RoboSharp.Results
             EnablePropertyChangeEvent = true;
         }
 
-        #endregion
-
         // Add / Subtract methods are internal to allow usage within the RoboCopyResultsList object.
         // The 'Average' Methods will first Add the statistics to the current one, then recalculate the average.
         // Subtraction is only used when an item is removed from a RoboCopyResultsList 
         // As such, public consumers should typically not require the use of subtract methods 
 
-        #region < ADD ( internal ) >
+        #region < ADD & Subtract ( internal ) >
+
+        internal void Add(IEnumerable<ISpeedStatistic> stats)
+        {
+            foreach (ISpeedStatistic stat in stats)
+                Add(stat);
+        }
+
+        internal void Subtract(IEnumerable<SpeedStatistic> stats)
+        {
+            foreach (SpeedStatistic stat in stats)
+                Subtract(stat);
+        }
 
         /// <summary>
         /// Add the results of the supplied SpeedStatistic objects to this object. <br/>
@@ -306,108 +335,69 @@ namespace RoboSharp.Results
         /// Ex: One object with 2 runs and one with 3 runs will return the average of all 5 runs instead of the average of two averages.
         /// </remarks>
         /// <param name="stat">SpeedStatistic Item to add</param>
-        /// <param name="ForceTreatAsSpeedStat">        
-        /// Setting this to TRUE will instead combine the calculated average of the <see cref="AverageSpeedStatistic"/>, treating it as a single <see cref="SpeedStatistic"/> object. <br/>
-        /// Ignore the private fields, and instead use the calculated speeds)
-        /// </param>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal void Add(ISpeedStatistic stat, bool ForceTreatAsSpeedStat = false)
+        internal void Add(ISpeedStatistic stat)
         {
-            if (stat == null) return;
-            bool IsAverageStat = !ForceTreatAsSpeedStat && stat.GetType() == typeof(AverageSpeedStatistic);
-            AverageSpeedStatistic AvgStat = IsAverageStat ? (AverageSpeedStatistic)stat : null;
-            Divisor += IsAverageStat ? AvgStat.Divisor : 1;
-            Combined_BytesPerSec += IsAverageStat ? AvgStat.Combined_BytesPerSec : stat.BytesPerSec;
-            Combined_MegaBytesPerMin += IsAverageStat ? AvgStat.Combined_MegaBytesPerMin : stat.MegaBytesPerMin;
+            if (stat is null) return;
+            if (stat is AverageSpeedStatistic avg)
+            {
+                _divisor += avg._divisor;
+                _combinedBytesPerSecond += avg._combinedBytesPerSecond;
+                _combinedMegabytesPerMinute += avg._combinedMegabytesPerMinute;
+            }
+            else
+            {
+                _divisor += 1;
+                _combinedBytesPerSecond += stat.BytesPerSec;
+                _combinedMegabytesPerMinute += stat.MegaBytesPerMin;
+            }
         }
-
-
-        /// <summary>
-        /// Add the supplied SpeedStatistic collection to this object.
-        /// </summary>
-        /// <param name="stats">SpeedStatistic collection to add</param>
-        /// <param name="ForceTreatAsSpeedStat"><inheritdoc cref="Add(ISpeedStatistic, bool)"/></param>
-        /// <inheritdoc cref="Add(ISpeedStatistic, bool)" path="/remarks"/>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal void Add(IEnumerable<ISpeedStatistic> stats, bool ForceTreatAsSpeedStat = false)
-        {
-            foreach (ISpeedStatistic stat in stats)
-                Add(stat, ForceTreatAsSpeedStat);
-        }
-
-        #endregion
-
-        #region < Subtract ( internal ) >
 
         /// <summary>
         /// Subtract the results of the supplied SpeedStatistic objects from this object.<br/>
         /// </summary>
-        /// <param name="stat">Statistics Item to add</param>
-        /// <param name="ForceTreatAsSpeedStat"><inheritdoc cref="Add(ISpeedStatistic, bool)"/></param>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal void Subtract(SpeedStatistic stat, bool ForceTreatAsSpeedStat = false)
+        /// <param name="stat">Statistics Item to subtract</param>
+        internal void Subtract(ISpeedStatistic stat)
         {
-            if (stat == null) return;
-            bool IsAverageStat = !ForceTreatAsSpeedStat && stat.GetType() == typeof(AverageSpeedStatistic);
-            AverageSpeedStatistic AvgStat = IsAverageStat ? (AverageSpeedStatistic)stat : null;
-            Divisor -= IsAverageStat ? AvgStat.Divisor : 1;
-            //Combine the values if Divisor is still valid
-            if (Divisor >= 1)
+            if (stat is null) return;
+            if (_divisor < 1 || _combinedBytesPerSecond < 0 || _combinedMegabytesPerMinute < 0)
             {
-                Combined_BytesPerSec -= IsAverageStat ? AvgStat.Combined_BytesPerSec : stat.BytesPerSec;
-                Combined_MegaBytesPerMin -= IsAverageStat ? AvgStat.Combined_MegaBytesPerMin : stat.MegaBytesPerMin;
+                //Cannot have negative speeds or divisors -> Reset all values
+                _combinedBytesPerSecond = 0;
+                _combinedMegabytesPerMinute = 0;
+                _divisor = 0;
             }
-            //Cannot have negative speeds or divisors -> Reset all values
-            if (Divisor < 1 || Combined_BytesPerSec < 0 || Combined_MegaBytesPerMin < 0)
+            else if (stat is AverageSpeedStatistic avg)
             {
-                Combined_BytesPerSec = 0;
-                Combined_MegaBytesPerMin = 0;
-                Divisor = 0;
+                _divisor -= avg._divisor;
+                _combinedBytesPerSecond -= avg._combinedBytesPerSecond;
+                _combinedMegabytesPerMinute -= avg._combinedMegabytesPerMinute;
             }
-        }
-
-        /// <summary>
-        /// Subtract the supplied SpeedStatistic collection from this object.
-        /// </summary>
-        /// <param name="stats">SpeedStatistic collection to subtract</param>
-        /// <param name="ForceTreatAsSpeedStat"><inheritdoc cref="Add(ISpeedStatistic, bool)"/></param>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal void Subtract(IEnumerable<SpeedStatistic> stats, bool ForceTreatAsSpeedStat = false)
-        {
-            foreach (SpeedStatistic stat in stats)
-                Subtract(stat, ForceTreatAsSpeedStat);
+            else
+            {
+                _divisor -= 1;
+                _combinedBytesPerSecond -= stat.BytesPerSec;
+                _combinedMegabytesPerMinute -= stat.MegaBytesPerMin;
+            }
         }
 
         #endregion
 
         #region < AVERAGE ( public ) >
 
-        /// <summary>
-        /// Immediately recalculate the BytesPerSec and MegaBytesPerMin values
-        /// </summary>
-        [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal void CalculateAverage()
+        /// <summary> Report the public properties have updated </summary>
+        private void CalculateAverage()
         {
-            EnablePropertyChangeEvent = false;
-            //BytesPerSec
-            var i = Divisor < 1 ? 0 : Math.Round(Combined_BytesPerSec / Divisor, 3);
-            bool TriggerBPS = BytesPerSec != i;
-            BytesPerSec = i;
-            //MegaBytes
-            i = Divisor < 1 ? 0 : Math.Round(Combined_MegaBytesPerMin / Divisor, 3);
-            bool TriggerMBPM = MegaBytesPerMin != i;
-            MegaBytesPerMin = i;
-            //Trigger Events
-            EnablePropertyChangeEvent = true;
-            if (TriggerBPS) OnPropertyChange("BytesPerSec");
-            if (TriggerMBPM) OnPropertyChange("MegaBytesPerMin");
+            _recalcBPS = true;
+            _recalcMB = true;
+            OnPropertyChange("BytesPerSec");
+            OnPropertyChange("MegaBytesPerMin");
         }
 
         /// <summary>
         /// Combine the supplied <see cref="SpeedStatistic"/> objects, then get the average.
         /// </summary>
         /// <param name="stat">Stats object</param>
-        /// <inheritdoc cref="Add(ISpeedStatistic, bool)" path="/remarks"/>
+        /// <inheritdoc cref="Add(ISpeedStatistic)" path="/remarks"/>
         public void Average(ISpeedStatistic stat)
         {
             Add(stat);
@@ -418,10 +408,26 @@ namespace RoboSharp.Results
         /// Combine the supplied <see cref="SpeedStatistic"/> objects, then get the average.
         /// </summary>
         /// <param name="stats">Collection of <see cref="ISpeedStatistic"/> objects</param>
-        /// <inheritdoc cref="Add(ISpeedStatistic, bool)" path="/remarks"/>
+        /// <inheritdoc cref="Add(ISpeedStatistic)" path="/remarks"/>
         public void Average(IEnumerable<ISpeedStatistic> stats)
         {
             Add(stats);
+            CalculateAverage();
+        }
+
+        /// <summary>
+        /// Calculate the speeds for the specified file and time, then average them in.
+        /// </summary>
+        /// <param name="fileLength">the number of bytes copied</param>
+        /// <param name="timeSpan">the time span over which the bytes were copied ( EndDate - StartDate )</param>
+        public void Average(long fileLength, TimeSpan timeSpan)
+        {
+            if (timeSpan.TotalSeconds <= 0) return; // instantaneous copies are ignored to prevent div/0 errors
+            if (fileLength < 0) throw new ArgumentException("File Length cannot be less than 0", nameof(fileLength));
+
+            _divisor += 1;
+            _combinedBytesPerSecond += Decimal.Round(fileLength / (decimal)timeSpan.TotalSeconds, 3);
+            _combinedMegabytesPerMinute += Decimal.Round(fileLength / MegaBytePerMinDivisor / (decimal)timeSpan.TotalMinutes, 3);
             CalculateAverage();
         }
 

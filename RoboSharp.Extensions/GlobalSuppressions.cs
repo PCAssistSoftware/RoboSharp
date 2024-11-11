@@ -5,6 +5,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+[assembly: SuppressMessage("Style", "IDE0090:Use 'new(...)'", Justification = "Multi-Target")]
 [assembly: SuppressMessage("Performance", "IDE0090:Use 'new(...)'", Justification = "Required by .NetStandard Target")]
 [assembly: SuppressMessage("Style", "IDE0017:Simplify object initialization", Justification = "Uses Appropriate Constructor", Scope = "member", Target = "~M:RoboSharp.Extensions.RoboMover.RunAsRoboMover(System.String,System.String,System.String)~System.Threading.Tasks.Task{RoboSharp.Results.RoboCopyResults}")]
-[assembly: SuppressMessage("Usage", "CA2208:Instantiate argument exceptions correctly", Justification = "intential property check", Scope = "member", Target = "~M:RoboSharp.Extensions.IFilePairExtensions.GetFileLength(RoboSharp.Extensions.IFilePair)~System.Int64")]
+[assembly: SuppressMessage("Maintainability", "CA1510:Use ArgumentNullException throw helper", Justification = "Unnecessary. Digging into code reveals it creates a new instance even though tooltip says otherwise. (its the same thing with extra steps)")]
+[assembly: SuppressMessage("Style", "IDE0057:Use range operator", Justification = "Slice expression can not be simplified due to Net48 compatibility")]

@@ -134,6 +134,8 @@ namespace RoboSharp.Results
         /// <remarks>Underlying value is Lazy object - Initial value not calculated until first request. </remarks>
         public IRoboCopyCombinedExitStatus Status => ExitStatusSummaryField?.Value;
 
+        RoboCopyExitStatus IResults.Status => ExitStatusSummaryField?.Value;
+
         /// <summary> The Collection of RoboCopy Results. Add/Removal of <see cref="RoboCopyResults"/> objects must be performed through this object's methods, not on the list directly. </summary>
         public IReadOnlyList<RoboCopyResults> Collection => ResultsList;
 
@@ -300,7 +302,6 @@ namespace RoboSharp.Results
                     if (Average_SpeedStatsField.IsValueCreated)
                     {
                         Average_SpeedStatsField.Value.Add(r?.SpeedStatistic);
-                        if (RaiseValueChangeEvent) Average_SpeedStatsField.Value.CalculateAverage();
                     }
                 }
             }
@@ -336,7 +337,6 @@ namespace RoboSharp.Results
                             Average_SpeedStatsField.Value.Reset();
                         else
                             Average_SpeedStatsField.Value.Subtract(r.SpeedStatistic);
-                        if (RaiseValueChangeEvent) Average_SpeedStatsField.Value.CalculateAverage();
                     }
                 }
             }

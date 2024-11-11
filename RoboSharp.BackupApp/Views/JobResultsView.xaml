@@ -1,0 +1,41 @@
+﻿<ScrollViewer x:Class="RoboSharp.BackupApp.Views.JobResultsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:RoboSharp.BackupApp"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="400"
+            Background="#FFE5E5E5" 
+            RenderTransformOrigin="0.5,0.5"
+            xmlns:ViewModels="clr-namespace:RoboSharp.BackupApp.ViewModels"
+            d:DataContext="{d:DesignInstance IsDesignTimeCreatable=False, Type=ViewModels:JobResultsViewModel}"
+      >
+    <StackPanel MinWidth="300" Width="Auto" VerticalAlignment="Top">
+        <Expander Header="Summary">
+            <Grid>
+                <Label Content="{Binding Summary, FallbackValue='Summary'}" HorizontalAlignment="Left" Height="140" Margin="30,0,0,0" VerticalAlignment="Top"/>
+            </Grid>
+        </Expander>
+        <Expander Header="Directory Statistics">
+            <Grid>
+                <Label Content="{Binding DirStatString, FallbackValue='Dir Stats'}" HorizontalAlignment="Left" Height="140" Margin="30,0,0,0" VerticalAlignment="Top"/>
+            </Grid>
+        </Expander>
+        <Expander Header="File Statistics">
+            <Grid>
+                <Label Content="{Binding FileStatString, FallbackValue='File Stats'}" HorizontalAlignment="Left" Height="140" Margin="30,0,0,0" VerticalAlignment="Top"/>
+            </Grid>
+        </Expander>
+        <Expander Header="Byte Statistics">
+            <Grid>
+                <Label Content="{Binding ByteStatString, FallbackValue='Byte Stats'}" HorizontalAlignment="Left" Height="140" Margin="30,0,0,0" VerticalAlignment="Top"/>
+            </Grid>
+        </Expander>
+        <Expander Header="Log Lines">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="600">
+                <TextBox Text="{Binding LogLines, FallbackValue='log lines'}" IsReadOnly="True" Height="140" Margin="30,0,10,0" VerticalAlignment="Top"/>
+            </ScrollViewer>
+        </Expander>
+    </StackPanel>
+</ScrollViewer>

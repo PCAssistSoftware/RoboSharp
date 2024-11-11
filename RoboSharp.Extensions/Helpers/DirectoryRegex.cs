@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using RoboSharp.Extensions.Options;
 
 namespace RoboSharp.Extensions.Helpers
 {
@@ -28,13 +29,13 @@ namespace RoboSharp.Extensions.Helpers
         public DirectoryRegex(bool isPathRegex, string pattern, RegexOptions options = RegexOptions.IgnoreCase) : this(isPathRegex, new Regex(pattern, options))
         { }
 
-        /// <inheritdoc cref="SelectionOptionsExtensions.CreateWildCardRegex(string)"/>
+        /// <inheritdoc cref="SelectionExtensions.CreateWildCardRegex(string)"/>
         /// <inheritdoc cref="DirectoryRegex.DirectoryRegex(bool, Regex)"/>
         /// <remarks>If the pattern contains any DirectorySeperatorCharacters (which are uncommon in WildCard patterns), it will set <see cref="IsPathRegex"/> = <see langword="true"/></remarks>
         public static DirectoryRegex FromWildCard(string pattern)
         {
             bool isPathRegex = pattern.Contains(Path.DirectorySeparatorChar) || pattern.Contains(Path.AltDirectorySeparatorChar);
-            return new DirectoryRegex(isPathRegex, SelectionOptionsExtensions.CreateWildCardRegex(pattern));
+            return new DirectoryRegex(isPathRegex, SelectionExtensions.CreateWildCardRegex(pattern));
         }
 
         /// <summary>

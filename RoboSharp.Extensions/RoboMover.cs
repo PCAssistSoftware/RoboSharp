@@ -4,12 +4,13 @@ using System.Text;
 using System.IO;
 using System.Linq;
 using RoboSharp;
-using RoboSharp.Extensions;
 using RoboSharp.Interfaces;
 using RoboSharp.Results;
 using RoboSharp.EventArgObjects;
 using System.Threading.Tasks;
 using System.Threading;
+using RoboSharp.Extensions.Comparers;
+using RoboSharp.Extensions.Options;
 using RoboSharp.Extensions.Helpers;
 
 namespace RoboSharp.Extensions

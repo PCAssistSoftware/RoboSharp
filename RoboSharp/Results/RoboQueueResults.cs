@@ -63,26 +63,28 @@ namespace RoboSharp.Results
 
         #region < IRoboCopyResultsList Implementation >
 
-        /// <inheritdoc cref="IRoboCopyResultsList.DirectoriesStatistic"/>
-        public IStatistic DirectoriesStatistic => ((IRoboCopyResultsList)collection).DirectoriesStatistic;
+        /// <inheritdoc cref="IResults.DirectoriesStatistic"/>
+        public IStatistic DirectoriesStatistic => collection.DirectoriesStatistic;
 
-        /// <inheritdoc cref="IRoboCopyResultsList.BytesStatistic"/>
-        public IStatistic BytesStatistic => ((IRoboCopyResultsList)collection).BytesStatistic;
+        /// <inheritdoc cref="IResults.BytesStatistic"/>
+        public IStatistic BytesStatistic => collection.BytesStatistic;
 
-        /// <inheritdoc cref="IRoboCopyResultsList.FilesStatistic"/>
-        public IStatistic FilesStatistic => ((IRoboCopyResultsList)collection).FilesStatistic;
+        /// <inheritdoc cref="IResults.FilesStatistic"/>
+        public IStatistic FilesStatistic => collection.FilesStatistic;
 
         /// <inheritdoc cref="IRoboCopyResultsList.SpeedStatistic"/>
-        public ISpeedStatistic SpeedStatistic => ((IRoboCopyResultsList)collection).SpeedStatistic;
+        public ISpeedStatistic SpeedStatistic => collection.SpeedStatistic;
 
         /// <inheritdoc cref="IRoboCopyResultsList.Status"/>
-        public IRoboCopyCombinedExitStatus Status => ((IRoboCopyResultsList)collection).Status;
+        public IRoboCopyCombinedExitStatus Status => collection.Status;
+
+        RoboCopyExitStatus IResults.Status => ((IResults)collection).Status;
 
         /// <inheritdoc cref="IRoboCopyResultsList.Collection"/>
-        public IReadOnlyList<RoboCopyResults> Collection => ((IRoboCopyResultsList)collection).Collection;
+        public IReadOnlyList<RoboCopyResults> Collection => collection.Collection;
 
         /// <inheritdoc cref="IRoboCopyResultsList.Count"/>
-        public int Count => ((IRoboCopyResultsList)collection).Count;
+        public int Count => collection.Count;
 
         ///<summary>Gets the <see cref="RoboCopyResults"/> object at the specified index. </summary>
         public RoboCopyResults this[int i] => ((IRoboCopyResultsList)collection)[i];
@@ -92,60 +94,60 @@ namespace RoboSharp.Results
         {
             add
             {
-                ((INotifyCollectionChanged)collection).CollectionChanged += value;
+                collection.CollectionChanged += value;
             }
 
             remove
             {
-                ((INotifyCollectionChanged)collection).CollectionChanged -= value;
+                collection.CollectionChanged -= value;
             }
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetByteStatistics"/>
         public IStatistic[] GetByteStatistics()
         {
-            return ((IRoboCopyResultsList)collection).GetByteStatistics();
+            return collection.GetByteStatistics();
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetDirectoriesStatistics"/>
         public IStatistic[] GetDirectoriesStatistics()
         {
-            return ((IRoboCopyResultsList)collection).GetDirectoriesStatistics();
+            return collection.GetDirectoriesStatistics();
         }
 
         /// <inheritdoc cref="RoboCopyResultsList.GetEnumerator"/>
         public IEnumerator<RoboCopyResults> GetEnumerator()
         {
-            return ((IEnumerable<RoboCopyResults>)collection).GetEnumerator();
+            return collection.GetEnumerator();
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetFilesStatistics"/>
         public IStatistic[] GetFilesStatistics()
         {
-            return ((IRoboCopyResultsList)collection).GetFilesStatistics();
+            return collection.GetFilesStatistics();
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetSpeedStatistics"/>
         public ISpeedStatistic[] GetSpeedStatistics()
         {
-            return ((IRoboCopyResultsList)collection).GetSpeedStatistics();
+            return collection.GetSpeedStatistics();
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetStatuses"/>
         public RoboCopyExitStatus[] GetStatuses()
         {
-            return ((IRoboCopyResultsList)collection).GetStatuses();
+            return collection.GetStatuses();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable)collection).GetEnumerator();
+            return collection.GetEnumerator();
         }
 
         /// <inheritdoc cref="IRoboCopyResultsList.GetErrors"/>
         public ErrorEventArgs[] GetErrors()
         {
-            return ((IRoboCopyResultsList)collection).GetErrors();
+            return collection.GetErrors();
         }
         #endregion
     }

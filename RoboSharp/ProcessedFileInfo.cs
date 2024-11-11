@@ -95,7 +95,7 @@ namespace RoboSharp
 
         /// <summary>Description of the item as reported by RoboCopy</summary>
         public string FileClass { get; set; }
-        
+
         /// <inheritdoc cref="RoboSharp.FileClassType"/>
         public FileClassType FileClassType { get; set; }
 
@@ -119,46 +119,96 @@ namespace RoboSharp
             {
                 case FileClassType.SystemMessage: return Name;
                 case FileClassType.NewDir: return DirInfoToString(true);
-                case FileClassType.File: return FileInfoToString(true, true);
+                case FileClassType.File: return FileInfoToString(FileClass, true, true);
                 default: throw new NotImplementedException("Unknown FileClassType");
             }
         }
 
         /// <summary>
-        /// Evaluate <see cref="LoggingOptions.NoFileClasses"/> and <see cref="LoggingOptions.NoFileSizes"/> to determine if those value should be included in the output string. <br/>
-        /// Name will always be included.
+        /// Get the log line, taking the <paramref name="options"/> into consideration.
         /// </summary>
-        /// <param name="options"></param>
-        /// <returns></returns>
+        /// <param name="options">
+        /// Evaluates <see cref="LoggingOptions.NoFileClasses"/> and <see cref="LoggingOptions.NoFileSizes"/> to determine if those values should be included in the output string.
+        /// </param>
+        /// <returns>The string equivalent log line for this item</returns>
+        /// <exception cref="NotImplementedException"></exception>
         public string ToString(LoggingOptions options)
         {
+            if (options is null) throw new ArgumentNullException(nameof(options));
             switch (FileClassType)
             {
                 case FileClassType.SystemMessage: return Name;
-                case FileClassType.NewDir: return DirInfoToString(true);
-                case FileClassType.File: return FileInfoToString(!options.NoFileClasses, !options.NoFileSizes);
+                case FileClassType.NewDir: return DirInfoToString(!options.NoFileSizes);
+                case FileClassType.File: return FileInfoToString(FileClass, !options.NoFileClasses, !options.NoFileSizes);
                 default: throw new NotImplementedException("Unknown FileClassType");
             }
         }
 
         /// <summary>
-        /// "\t                   [FileCount]\t[DirectoryPath]"
+        /// Generates the error log line for a failed file operation, using the <see cref="IRoboCommand.Configuration"/> 
+        /// </summary>
+        /// <param name="command">The associated IRobocommand</param>
+        /// <param name="datetime">If not specified, uses DateTime.Now</param>
+        /// <param name="ex">The exception whose error code and message shall be used</param>
+        /// <param name="stepDescription">The description of the step that failed</param>
+        /// <returns>
+        /// With exception provided:
+        /// <br/><c>[DateTime] [Configuration.ErrorToken] [ErrorCode] [stepDescription] [FilePath][Environment.Newline][ex.Message]</c>
+        /// <para/>Without exception:
+        /// <br/><c>[DateTime] [Configuration.ErrorToken] [stepDescription] [FilePath]</c>
+        /// </returns>
+        public string ToStringFailed(IRoboCommand command, Exception ex = null, DateTime? datetime = null, string stepDescription = null)
+        {
+            if (command is null) throw new ArgumentNullException(nameof(command));
+            if (command.Configuration is null) throw new ArgumentNullException(nameof(command.Configuration));
+            switch (FileClassType)
+            {
+                case FileClassType.SystemMessage:
+                case FileClassType.NewDir:
+                case FileClassType.File:
+                    if (ex is null && string.IsNullOrWhiteSpace(stepDescription))
+                        return $"{datetime ?? DateTime.Now} {command.Configuration.ErrorToken} {Name}";
+                    
+                    else if (ex is null)
+                        return $"{datetime ?? DateTime.Now} {command.Configuration.ErrorToken} {stepDescription} {Name}";
+                    
+                    else if (string.IsNullOrWhiteSpace(stepDescription))
+                        return $"{datetime ?? DateTime.Now} {command.Configuration.ErrorToken} {ex.HResult} {Name}{Environment.NewLine}{ex.Message}";
+
+                    else
+                        return $"{datetime ?? DateTime.Now} {command.Configuration.ErrorToken} {ex.HResult} {stepDescription} {Name}{Environment.NewLine}{ex.Message}";
+
+                default: throw new NotImplementedException("Unknown FileClassType");
+            }
+        }
+
+        /// <summary>
+        /// "\t[FileClass]  \t[FileCount]\t[DirectoryPath]"
         /// </summary>
         private string DirInfoToString(bool includeSize)
         {
-            string fc = FileClass.PadRight(10);
-            string fs = (includeSize ? Size.ToString() : "").PadLeft(10);
-            return string.Format("\t{0}{1}\t{2}", fc, fs, Name);
+            if (includeSize)
+                return $"\t{FileClass,-10}            \t{Name}";
+            else
+                return $"\t{FileClass,-10}{Size,12}\t{Name}";
         }
 
         /// <summary>
         /// "\t    [FileClass]  \t\t    [FileSize]\t[FileName]"
         /// </summary>
-        private string FileInfoToString(bool includeClass, bool includeSize)
+        private string FileInfoToString(string fileClass, bool includeClass, bool includeSize)
         {
-            string fc = (includeClass ? FileClass : "").PadLeft(10).PadRight(12);
-            string fs = (includeSize? Size.ToString() : "").PadLeft(8);
-            return string.Format("\t{0}\t\t{1}\t{2}", fc, fs, Name);
+            if (includeClass)
+            {
+                if (includeSize)
+                    return $"\t{fileClass,10}  \t\t{Size,8}\t{Name}";
+                else
+                    return $"\t{fileClass,10}  \t\t        \t{Name}";
+            }
+            else if (includeSize)
+                return $"\t            \t\t{Size,8}\t{Name}";
+            else // name only
+                return $"\t            \t\t        \t{Name}";
         }
 
         /// <summary>
@@ -191,7 +241,7 @@ namespace RoboSharp
         /// <inheritdoc cref="TryGetDirectoryClass(RoboSharpConfiguration, out ProcessedDirectoryFlag)"/>
         public bool TryGetFileClass(RoboSharpConfiguration conf, out ProcessedFileFlag flag)
         {
-            foreach(ProcessedFileFlag f in typeof(ProcessedFileFlag).GetEnumValues())
+            foreach (ProcessedFileFlag f in typeof(ProcessedFileFlag).GetEnumValues())
             {
                 if (this.FileClass == conf.GetFileClass(f))
                 {

@@ -512,7 +512,7 @@ namespace RoboSharp
         /// Set all IRoboCommand objects to ListOnly mode, run them, then set all RoboCommands back to their previous ListOnly mode setting.
         /// </summary>
         /// <inheritdoc cref="StartJobs"/>
-        public Task<IRoboQueueResults> StartAll_ListOnly(string domain = "", string username = "", string password = "")
+        public async Task<IRoboQueueResults> StartAll_ListOnly(string domain = "", string username = "", string password = "")
         {
             if (IsRunning) throw new InvalidOperationException("Cannot start a new RoboQueue Process while this RoboQueue is already running.");
             IsListOnlyRunning = true;
@@ -522,26 +522,28 @@ namespace RoboSharp
             ListResultsUpdated?.Invoke(this, new ResultListUpdatedEventArgs(ListResults));
 
             //Run the commands
-            Task Run = StartJobs(domain, username, password, true);
-            Task<IRoboQueueResults> ResultsTask = Run.ContinueWith((continuation) =>
+            Task run = null;
+            try
+            {
+                run = StartJobs(domain, username, password, true);
+                await run;
+            }
+            finally
             {
                 //Set Flags
                 IsListOnlyRunning = false;
                 IsPaused = false;
-                ListOnlyCompleted = !WasCancelled && !continuation.IsFaulted;
+                ListOnlyCompleted = !WasCancelled && !run.IsFaulted;
 
                 // If some fault occurred while processing, throw the exception to caller
-                if (continuation.IsFaulted)
+                if (run.IsFaulted)
                 {
-                    TaskFaulted?.Invoke(this, new UnhandledExceptionEventArgs(continuation.Exception, true));
-                    throw continuation.Exception;
+                    TaskFaulted?.Invoke(this, new UnhandledExceptionEventArgs(run.Exception, true));
                 }
                 ListResultsObj.EndTime = DateTime.Now;
                 RunCompleted?.Invoke(this, new RoboQueueCompletedEventArgs(ListResultsObj, true));
-                return (IRoboQueueResults)ListResultsObj;
-            }, CancellationToken.None
-            );
-            return ResultsTask;
+            }
+            return ListResultsObj;
         }
 
         #endregion

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,16 +20,25 @@ namespace RoboSharp.UnitTests
         public static string Source_LargerNewer { get; } = Path.Combine(TestFileRoot, "LargerNewer");
         public static string Source_Standard { get; } = Path.Combine(TestFileRoot, "STANDARD");
 
+        public static void PrintEnvironment()
+        {
+            var assy = System.Reflection.Assembly.GetExecutingAssembly();
+            var env = assy.GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>();
+            string div = "----------------------";
+            Console.WriteLine($"{div}\nEnvironment : {env.FrameworkName} {env.FrameworkDisplayName} : \nImageRuntimeVersion:{assy.ImageRuntimeVersion}\n{div}\n");
+        }
+
         /// <summary>
         /// Check if running on AppVeyor -> Certain tests will always fail due to appveyor's setup -> this allows them to pass the checks on appveyor by just not running them
         /// </summary>
         /// <returns></returns>
         public static bool IsRunningOnAppVeyor(bool displayMessageIfReturnTrue = true)
         {
-            bool returnValue = TestDestination.StartsWith(@"C:\projects\robosharp\");
-            if (returnValue && displayMessageIfReturnTrue) Console.WriteLine(" - Bypassing this test due to running on AppVeyor");
-            return returnValue;
+            isAppveyor = isAppveyor ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData).StartsWith("C:\\Users\\appveyor\\", StringComparison.InvariantCultureIgnoreCase);
+            if (isAppveyor.Value && displayMessageIfReturnTrue) Console.WriteLine(" - Bypassing this test due to running on AppVeyor");
+            return isAppveyor.Value;
         }
+        private static bool? isAppveyor; 
 
         /// <summary>
         /// Generate the Starter Options and Test Objects to compare

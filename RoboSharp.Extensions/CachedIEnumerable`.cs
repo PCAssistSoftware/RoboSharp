@@ -11,6 +11,7 @@ namespace RoboSharp.Extensions
     /// Provides caching functionality for <see cref="IEnumerable{T}"/> to reduce cost of iterating over the enumeration multiple times
     /// </summary>
     /// <typeparam name="T">the type to enumerate</typeparam>
+    /// <remarks>As items are iterated, they will be cached into a private <see cref="List{T}"/> object.</remarks>
     public sealed class CachedEnumerable<T> : IEnumerable<T>, IDisposable, IEnumerable
     {
         private readonly List<T> _cache;
@@ -26,26 +27,34 @@ namespace RoboSharp.Extensions
         /// <summary>
         /// Gets an Empty Array
         /// </summary>
-        public static CachedEnumerable<T> Empty { get; }
+        public static readonly CachedEnumerable<T> Empty;
         
         /// <summary>
         /// Create a new Cached IEnumerable
         /// </summary>
-        /// <param name="enumerable"></param>
+        /// <param name="enumerable">The enumerable to iterate over.</param>
+        /// <remarks>As items are enumerated, caches them into a private <see cref="List{T}"/> object.</remarks>
         public CachedEnumerable(IEnumerable<T> enumerable)
         {
             _enumerable = enumerable ?? throw new ArgumentNullException(nameof(enumerable));
             _cache = new List<T>();
         }
 
-        internal CachedEnumerable(T[] enumerable) 
+        ///<remarks>This will call <see cref="System.Linq.Enumerable.ToList{TSource}(IEnumerable{TSource})"/> on the provided array</remarks>
+        ///<inheritdoc cref="CachedEnumerable{T}.CachedEnumerable(IEnumerable{T})"/>
+        public CachedEnumerable(T[] enumerable) 
         {
             if (enumerable is null) throw new ArgumentNullException(nameof(enumerable));
             this._cache = enumerable.ToList();
             this._enumerated = true;
         }
 
-        internal CachedEnumerable(List<T> enumerable) 
+        ///<remarks>
+        ///Creates a new private <see cref="List{T}"/> object via the ToList() method. 
+        ///<br/>It is generally recomended to use <see cref="System.Linq.Enumerable.AsEnumerable{TSource}(IEnumerable{TSource})"/> instead.
+        ///</remarks>
+        ///<inheritdoc cref="CachedEnumerable{T}.CachedEnumerable(IEnumerable{T})"/>
+        public CachedEnumerable(List<T> enumerable) 
         {
             if (enumerable is null) throw new ArgumentNullException(nameof(enumerable));
             this._cache = enumerable.ToList();

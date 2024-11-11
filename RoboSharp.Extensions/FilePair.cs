@@ -2,16 +2,18 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace RoboSharp.Extensions
 {
     /// <summary>
-    /// Class that implements the <see cref="IFilePair"/> and <see cref="IProcessedFilePair"/> interfaces
+    /// Class that implements the <see cref="IFilePair"/> and <see cref="IProcessedFilePair"/> interfaces, and allows for copying from the source to the destination.
+    /// <br/>Represents a pair of files to be evaluated.
     /// </summary>
     public class FilePair : IFilePair, IProcessedFilePair
     {
         /// <summary>
-        /// Create a new DirectoryPair object
+        /// Create a new FilePair object
         /// </summary>
         /// <param name="source">The source FileInfo object</param>
         /// <param name="destination">The Destination FileInfo object</param>
@@ -28,7 +30,7 @@ namespace RoboSharp.Extensions
         }
 
         /// <summary>
-        /// Create a new FilePair object from an existing <see cref="IFilePair"/>.
+        /// Create a new FilePair object from an existing <see cref="IFilePair"/>
         /// <br/> If the input <paramref name="filePair"/> is a <see cref="IProcessedFilePair"/>, adopt the properties.
         /// </summary>
         /// <param name="filePair">Provides Source/Destination FileInfo objects</param>

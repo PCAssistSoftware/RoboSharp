@@ -1,0 +1,194 @@
+﻿<UserControl x:Class="RoboSharp.BackupApp.Views.BatchCommandView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:RoboSharp.BackupApp.Views"
+             mc:Ignorable="d" 
+             xmlns:cv="clr-namespace:RoboSharp.BackupApp.Converters"
+             xmlns:views="clr-namespace:RoboSharp.BackupApp.Views"
+             xmlns:vm="clr-namespace:RoboSharp.BackupApp.ViewModels"
+             d:DataContext="{d:DesignInstance IsDesignTimeCreatable=False, Type=vm:BatchCommandViewModel}"
+             d:DesignHeight="775" d:DesignWidth="800">
+    <UserControl.Resources>
+        <cv:StringToIntConverter x:Key="IntConverter"/>
+        <cv:StringSplitter x:Key="StringArrayConverter"/>
+        <cv:RunHoursConverter x:Key="RunHoursConverter"/>
+    </UserControl.Resources>
+    <ScrollViewer>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="auto"/>
+                <RowDefinition Height="auto"/>
+                <RowDefinition Height="auto"/>
+            </Grid.RowDefinitions>
+            <Expander Header="File Batch Options" Background="AliceBlue" IsExpanded="True" Grid.Row="0">
+                <StackPanel>
+                    <StackPanel.Resources>
+                        <Style TargetType="RadioButton">
+                            <Setter Property="HorizontalAlignment" Value="Left"/>
+                            <Setter Property="Margin" Value="5,5,10,0"/>
+                        </Style>
+                        <Style TargetType="CheckBox">
+                            <Setter Property="HorizontalAlignment" Value="Left"/>
+                            <Setter Property="Margin" Value="4,5,10,0"/>
+                        </Style>
+                        <Style TargetType="TextBox">
+                            <Setter Property="MinHeight" Value="20"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        </Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="HorizontalAlignment" Value="Left"/>
+                        </Style>
+                    </StackPanel.Resources>
+                    <GroupBox>
+                        <GroupBox.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Padding" Value="8,2"/>
+                                <Setter Property="Margin" Value="5,7"/>
+                                <Setter Property="Grid.Column" Value="3"/>
+                                <Setter Property="MaxHeight" Value="25"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                            </Style>
+                        </GroupBox.Resources>
+                        <Grid Grid.IsSharedSizeScope="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                                <ColumnDefinition SharedSizeGroup="BrowseButtonGroup"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="auto" MinHeight="30"/>
+                                <RowDefinition Height="auto" MinHeight="15"/>
+                                <RowDefinition Height="auto" MinHeight="15"/>
+                                <!-- Begin Listbox -->
+                                <RowDefinition Height="auto" MinHeight="10"/>
+                                <RowDefinition Height="auto" MinHeight="0"/>
+                                <RowDefinition Height="auto" MinHeight="0"/>
+                                <RowDefinition Height="auto" MinHeight="0"/>
+                                <RowDefinition Height="auto" MinHeight="0"/>
+                            </Grid.RowDefinitions>
+                            <!-- Source File -->
+                            <DockPanel Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="3" LastChildFill="True">
+                                <TextBlock Text="Source File: " Grid.Column="0"/>
+                                <TextBox Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}"/>
+                            </DockPanel>
+                            <Button Content="Select File" Grid.Row="0" Command="{Binding SelectSourceCommand}"/>
+                            <!-- To File -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Destination Directory:" />
+                            <TextBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding DestinationDirectoryPath, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="New File Name: " />
+                            <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding DestinationFileName, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Row="1" Grid.RowSpan="2" Content="Select Directory" Command="{Binding SelectDestinationDirectoryCommand}" />
+                            <!-- File Collection -->
+                            <Button Content="Add To Batch" Grid.Row="4" Grid.Column="5" Command="{Binding AddFilePairCommand}" />
+                            <Button Content="Remove Selected" Grid.Row="5" Grid.Column="5" Command="{Binding RemoveSelectedFilePairCommand}"/>
+                            <Button Content="Start Batch" Grid.Row="6" Grid.Column="5" Command="{Binding RunCommandCommand}"/>
+                            <!-- File Pairs Listbox -->
+                            <ListBox ItemsSource="{Binding FilePairs}" SelectedItem="{Binding SelectedFilePair}" 
+                                     Grid.Row="4" Grid.RowSpan="4" Grid.Column="0" Grid.ColumnSpan="3"
+                                     MinHeight="100" Margin="0,10,0,0" >
+                                <ListBox.Resources>
+                                    <Style TargetType="TextBlock" x:Key="DataCol">
+                                        <Setter Property="Grid.Column" Value="2"/>
+                                    </Style>
+                                </ListBox.Resources>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="auto" />
+                                                <ColumnDefinition Width="3" />
+                                                <ColumnDefinition Width="auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Text="Filename : " HorizontalAlignment="Right" FontWeight="Bold" />
+                                            <TextBlock Style="{StaticResource DataCol}" Text="{Binding Source.Name}" Grid.Row="0" FontWeight="Bold"/>
+                                            <TextBlock Text="Source :" HorizontalAlignment="Right" Grid.Row="1"/>
+                                            <TextBlock Style="{StaticResource DataCol}" Text="{Binding Source.FullName}" Grid.Row="1"/>
+                                            <TextBlock Text="Destination :" Grid.Row="3"/>
+                                            <TextBlock Style="{StaticResource DataCol}" Text="{Binding Destination.FullName}" Grid.Row="3"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </GroupBox>
+                    <DockPanel Margin="0,10" LastChildFill="True">
+                        <GroupBox Header="Type Of Copier" Grid.Column="1">
+                            <StackPanel>
+                                <RadioButton DataContext="{Binding IFileCopiers[0]}" IsChecked="{Binding IsChecked}" Content="{Binding Name, FallbackValue='StreamedCopier'}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Buffer Size : " Margin="25,5,0,10" VerticalAlignment="Bottom" TextAlignment="Center" />
+                                    <TextBox Text="{Binding StreamedCopierBufferSize, FallbackValue=81920}" ToolTip="The Buffer Syze (in bytes) to use for the StreamedCopier. Default is 81920 bytes." PreviewTextInput="IsNumeric_PreviewTextInput" MinWidth="40" Padding="10,2" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <RadioButton DataContext="{Binding IFileCopiers[1]}" IsChecked="{Binding IsChecked}" Content="{Binding Name, FallbackValue='CopyFileEx'}" />
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Copy Options">
+                            <StackPanel>
+                                <RadioButton Content="Copy" IsChecked="True" GroupName="BatchCommandCopyOrMove"/>
+                                <RadioButton Content="Move" IsChecked="{Binding Option_RunAsFileMover, FallbackValue=False}" GroupName="BatchCommandCopyOrMove"/>
+                                <CheckBox Content="Exclude Newer" IsChecked="{Binding Option_ExcludeNewer}"/>
+                                <CheckBox Content="Exclude Older" IsChecked="{Binding Option_ExcludeOlder}"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Retry Options">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="5" />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Retry Count (/R:N)" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Retry Wait Time (/W:N)" />
+                                    <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Option_RetryCount, Converter={StaticResource IntConverter}}" PreviewTextInput="IsNumeric_PreviewTextInput" Width="50" />
+                                    <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Option_RetryPeriod, Converter={StaticResource IntConverter}}" PreviewTextInput="IsNumeric_PreviewTextInput" Width="50"/>
+                                </Grid>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Logging Options">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <CheckBox Content="List-Only" IsChecked="{Binding Option_ListOnly}"/>
+                                    <CheckBox Content="No Job Header" IsChecked="{Binding Option_NoHeader}"/>
+                                    <CheckBox Content="No Job Summary" IsChecked="{Binding Option_NoSummary}"/>
+                                    <CheckBox Content="No File List" IsChecked="{Binding Option_NoFileList}"/>
+                                    <CheckBox Content="Full Path Names" IsChecked="{Binding Option_FullPathNames}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Log Path"/>
+                                    <TextBox Text="{Binding Option_LogPath}" ToolTip="Provide a fully qualified file path." MinWidth="200" Padding="5,3,10,3"/>
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+                    </DockPanel>
+                </StackPanel>
+            </Expander>
+            <Expander Header="Batch Progress" IsExpanded="True" Background="BlanchedAlmond" Grid.Row="1">
+                <views:CommandProgressView DataContext="{Binding CommandProgress}"/>
+            </Expander>
+            <Expander Header="Last Job Results" Background="LightGray" Grid.Row="2">
+                <views:JobResultsView DataContext="{Binding LastJobResults}" Margin="25" Background="LightGray"/>
+            </Expander>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

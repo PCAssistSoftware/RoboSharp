@@ -15,7 +15,20 @@ try
 
     // Change this to the desired factory - a custom factory will be required for use with linux systems
     IRoboCommandFactory commandFactory = RoboCommandFactory.Default;
+    await RunCommand(commandFactory, args);
 
+}
+catch(Exception e)
+{
+    Console.WriteLine(e.Message);
+    Console.ReadLine();
+    System.Environment.Exit(1);
+}
+System.Environment.Exit(0);
+
+
+static async Task RunCommand(IRoboCommandFactory commandFactory, params string[] args)
+{
     // Get the command and execute it
     IRoboCommand cmd;
     if (args != null && args.Where(s => !string.IsNullOrWhiteSpace(s)).Any())
@@ -29,17 +42,10 @@ try
     Console.WriteLine("Command Parsed Successfully -- Starting command.\n");
     cmd.OnFileProcessed += Cmd_OnFileProcessed;
     cmd.OnError += Cmd_OnError;
+
     await cmd.Start(); // If using the default factory, this will throw PlatformNotSupported in a non-windows environment!
     if (cmd is IDisposable dp) dp.Dispose();
 }
-catch(Exception e)
-{
-    Console.WriteLine(e.Message);
-    Console.ReadLine();
-    System.Environment.Exit(1);
-}
-System.Environment.Exit(0);
-
 
 static IRoboCommand AskForCommandParameters(IRoboCommandFactory factory)
 {
@@ -68,4 +74,5 @@ static void Cmd_OnFileProcessed(IRoboCommand sender, FileProcessedEventArgs e)
 static void Cmd_OnError(IRoboCommand sender, RoboSharp.ErrorEventArgs e)
 {
     Console.WriteLine(e.Error);
+    Console.WriteLine(e.ErrorDescription);
 }

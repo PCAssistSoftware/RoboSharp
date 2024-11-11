@@ -8,7 +8,8 @@ using RoboSharp.Extensions.Helpers;
 namespace RoboSharp.Extensions
 {
     /// <summary>
-    /// Helper Class that implements the <see cref="IDirectoryPair"/> interface
+    /// Helper Class that implements the <see cref="IDirectoryPair"/> interface.
+    /// <br/>Represents a pair of directories to be evaluated.
     /// </summary>
     public sealed class DirectoryPair : IDirectoryPair, IProcessedDirectoryPair
     {

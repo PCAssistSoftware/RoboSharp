@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoboSharp;
+using RoboSharp.Extensions.Helpers;
 using RoboSharp.Interfaces;
 using RoboSharp.UnitTests;
 using System;
@@ -8,7 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace RoboSharp.Extensions.UnitTests
+namespace RoboSharp.Extensions.Tests
 {
     [TestClass]
     public class RoboMoverEventTests : RoboSharp.UnitTests.RoboCommandEventTests
@@ -136,6 +137,7 @@ namespace RoboSharp.Extensions.UnitTests
             if (Test_Setup.IsRunningOnAppVeyor()) return;
             GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2], out var rc, out var rm);
             rc.SelectionOptions.ExcludedFiles.Add("*.txt");
+            rc.Configuration.EnableFileLogging = true;
             bool listOnly = rc.LoggingOptions.ListOnly;
             var results1 = TestPrep.RunTests(rc, rm, !listOnly, PrepMoveFiles).Result;
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);

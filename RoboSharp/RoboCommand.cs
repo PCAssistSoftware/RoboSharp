@@ -742,8 +742,9 @@ namespace RoboSharp
 
             if (string.IsNullOrWhiteSpace(data))
             {
-                //adds the whitespace to the results builder. Nothing else to do.
+                //adds the whitespace to the results builder. and report it as a system message
                 _resultsBuilder?.AddOutput(e.Data);
+                OnFileProcessed?.Invoke(this, FileProcessedEventArgs.WhiteSpaceLogLine);
                 return;  
             }
 
@@ -841,9 +842,12 @@ namespace RoboSharp
                     var errorCode = ApplicationConstants.ErrorCodes.FirstOrDefault(x => data == x.Value);
                     if (errorCode.Key == null)
                     {
-                        var file = new ProcessedFileInfo(data);
-                        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
+                        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(e.Data));
                     }
+                }
+                else
+                {
+                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(e.Data)); // report all misc. lines as system messages
                 }
             }
         }

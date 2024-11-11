@@ -54,24 +54,6 @@ namespace RoboSharp
                     yield return item;
         }
 
-        /// <summary>
-        /// Check if the path is full qualified as far as robocopy is concerned
-        /// </summary>
-        /// <remarks>
-        /// Strings less than 3 characters are always false.
-        /// Strings such as 'C:' should be avoided because it can cause robocopy to use the CURRENT DIRECTORY instead of the root directory
-        /// </remarks>
-        internal static bool IsPathFullyQualified(this string path)
-        {
-            if (path is null) throw new ArgumentNullException(nameof(path));
-            if (path.Length < 3) return false; //There is no way to specify a fixed path with one character (or less).
-            if (path.Length >= 3 && IsValidDriveChar(path[0]) && path[1] == System.IO.Path.VolumeSeparatorChar && IsDirectorySeperator(path[2])) return true; //Check for standard paths. C:\
-            if (path.Length >= 3 && IsDirectorySeperator(path[0]) && IsDirectorySeperator(path[1])) return true; //This is start of a UNC path
-            return false; //Default
-        }
-
-        private static bool IsDirectorySeperator(char c) => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;
-        private static bool IsValidDriveChar(char c) => c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z';
         internal static bool EndsWith(this string text, char c) => text.Length >= 1 && text[text.Length - 1] == c;
 
         /// <summary>
@@ -223,12 +205,24 @@ namespace RoboSharp
             return sanitizer.ToString();
         }
 
-        /// <summary> Encase the LogPath in quotes if needed </summary>
+        /// <summary> Encase the <paramref name="pathToWrap"/> in quotes if needed </summary>
         /// <inheritdoc cref="AppendWrappedPath(StringBuilder, string)"/>
         [MethodImpl(methodImplOptions: MethodImplOptions.AggressiveInlining)]
-        internal static StringBuilder WrapPath(this string pathToWrap)
+        internal static string WrapPath(this string pathToWrap)
         {
-            return new StringBuilder().AppendWrappedPath(pathToWrap);
+            if (string.IsNullOrWhiteSpace(pathToWrap)) return string.Empty;
+            var trimmedPath = pathToWrap.Trim();
+            if (trimmedPath.Length > 3 && trimmedPath[0] == '"' && trimmedPath.EndsWith('"'))
+            {
+                return trimmedPath;
+            }else if (trimmedPath.Any(Char.IsWhiteSpace))
+            {
+                return $@"""{trimmedPath.TrimEnd('\\', '/')}""";
+            }
+            else
+            {
+                return trimmedPath;
+            }
         }
 
         /// <summary> 

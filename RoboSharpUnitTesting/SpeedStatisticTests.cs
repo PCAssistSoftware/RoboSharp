@@ -12,6 +12,28 @@ namespace RoboSharp.UnitTests
     [TestClass]
     public class SpeedStatisticTests
     {
+        [TestMethod]
+        public void Test_Conversions()
+        {
+            int seconds = 67;
+            decimal BytesPerSecond = 1024 * 1024;
+            decimal MegabytesPerMin = 60; // rounded to 3 digits
+            long fileLength = Convert.ToInt64(BytesPerSecond * seconds);
+
+            var stat = new SpeedStatistic(fileLength, TimeSpan.FromSeconds(seconds));
+            Assert.AreEqual(BytesPerSecond, stat.BytesPerSec, "\n-- Bytes Per Second calculated incorrectly!");
+            Assert.AreEqual(MegabytesPerMin, stat.MegaBytesPerMin, "\n--MegaBytes Per Minute calculated incorrectly!");
+
+            var average = new AverageSpeedStatistic();
+            average.Average(fileLength, TimeSpan.FromSeconds(seconds));
+            Assert.AreEqual(BytesPerSecond, stat.BytesPerSec, "\n-- Average Bytes Per Second calculated incorrectly!");
+            Assert.AreEqual(MegabytesPerMin, stat.MegaBytesPerMin, "\n-- Average MegaBytes Per Minute calculated incorrectly!");
+
+            average.Average(new ISpeedStatistic[] { stat, stat, stat });
+            Assert.AreEqual(BytesPerSecond, stat.BytesPerSec, "\n-- Average Bytes Per Second calculated incorrectly!");
+            Assert.AreEqual(MegabytesPerMin, stat.MegaBytesPerMin, "\n-- Average MegaBytes Per Minute calculated incorrectly!");
+        }
+
         [DataRow("538 252 733", 538252733)]
         [DataRow("538,252,733", 538252733)]
         [DataRow("538.252.733", 538252733)]
