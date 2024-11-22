@@ -9,7 +9,7 @@
 ![Nuget](https://img.shields.io/nuget/v/RoboSharpNET35?label=RoboSharpNET35&link=https%3A%2F%2Fwww.nuget.org%2Fpackages%2FRoboSharpNET35)
 ![Nuget](https://img.shields.io/nuget/dt/RoboSharpNET35?label=%20&link=https%3A%2F%2Fwww.nuget.org%2Fpackages%2FRoboSharpNET35)
 
-### Wiki - in progress - https://github.com/tjscience/RoboSharp/wiki
+### Wiki - in progress - https://github.com/PCAssistSoftware/RoboSharp/wiki
 
 ## About
 
@@ -25,7 +25,7 @@ If you like the project, please rate it!
 
 ## Examples
 
-See the [Wiki](https://github.com/tjscience/RoboSharp/wiki) for examples and code snippets
+See the [Wiki](https://github.com/PCAssistSoftware/RoboSharp/wiki) for examples and code snippets
 
 ## Bugs / Issues
 
