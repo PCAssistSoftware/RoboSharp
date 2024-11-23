@@ -34,3 +34,7 @@ Before submitting issues please ensure you are using the latest version availabl
 ## Contributing to RoboSharp
 
 First off, thanks! Please go through the [guidelines](CONTRIBUTING.md).
+
+## Thanks
+
+Many thanks go to [tjscience](https://github.com/tjscience) for originally creating this great project. And also thanks to [RFBomb](https://github.com/RFBomb) for all his recent contributions that have helped make great improvements.  Hopefully this project can continue improving for many years to come.
