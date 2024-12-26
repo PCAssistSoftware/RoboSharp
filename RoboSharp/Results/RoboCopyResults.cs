@@ -9,7 +9,7 @@ namespace RoboSharp.Results
     /// Results provided by the RoboCopy command. Includes the Log, Exit Code, and statistics parsed from the log.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/RoboCopyResults"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboCopyResults"/>
     /// </remarks>
     public class RoboCopyResults : IResults, ITimeSpan
     {

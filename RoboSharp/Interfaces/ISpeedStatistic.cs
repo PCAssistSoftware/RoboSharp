@@ -11,7 +11,7 @@ namespace RoboSharp.Interfaces
     /// Provide Read-Only access to a SpeedStatistic
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/ISpeedStatistic"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/ISpeedStatistic"/>
     /// </remarks>
     public interface ISpeedStatistic : INotifyPropertyChanged, ICloneable
     {

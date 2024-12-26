@@ -10,7 +10,7 @@ namespace RoboSharp.Interfaces
     /// Provides <see cref="IStatistic"/> objects for File, Directory, and Bytes to allow comparison between ProgressEstimator and RoboCopyResults objects
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/IResults"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/IResults"/>
     /// </remarks>
     public interface IResults
     {

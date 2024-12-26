@@ -11,7 +11,7 @@ namespace RoboSharp.Results
     /// Object that evaluates the ExitCode reported after RoboCopy finishes executing.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/RoboCopyExitStatus"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboCopyExitStatus"/>
     /// </remarks>
     public class RoboCopyExitStatus
     {

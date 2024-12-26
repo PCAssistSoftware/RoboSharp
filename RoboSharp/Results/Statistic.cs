@@ -18,7 +18,7 @@ namespace RoboSharp.Results
     /// <see cref="RoboCopyResults"/> will not typically raise any events, but this object is used for other items, such as <see cref="ProgressEstimator"/> and <see cref="RoboCopyResultsList"/> to present results whose values may update periodically.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/Statistic"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/Statistic"/>
     /// </remarks>
     public partial class Statistic : IStatistic
     {

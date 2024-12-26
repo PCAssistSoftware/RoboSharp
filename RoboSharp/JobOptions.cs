@@ -10,7 +10,7 @@ namespace RoboSharp
     /// 
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/JobOptions"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/JobOptions"/>
     /// </remarks>
     public class JobOptions : ICloneable
     {

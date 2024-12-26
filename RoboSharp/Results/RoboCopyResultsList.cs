@@ -21,7 +21,7 @@ namespace RoboSharp.Results
     /// <br/><see cref="INotifyCollectionChanged"/>
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/RoboCopyResultsList"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboCopyResultsList"/>
     /// </remarks>
     public sealed class RoboCopyResultsList : IRoboCopyResultsList, IList<RoboCopyResults>, INotifyCollectionChanged
     {

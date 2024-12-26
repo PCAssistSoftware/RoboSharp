@@ -14,7 +14,7 @@ namespace RoboSharp
     /// Source, Destination, and options for how to move or copy files.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/CopyOptions"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/CopyOptions"/>
     /// </remarks>
     public partial class CopyOptions : ICloneable
     {

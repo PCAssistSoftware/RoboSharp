@@ -10,7 +10,7 @@ namespace RoboSharp.Interfaces
     /// Object that provides <see cref="IStatistic"/> objects whose events can be bound to report estimated RoboCommand / RoboQueue progress periodically.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/IProgressEstimator"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/IProgressEstimator"/>
     /// </remarks>
     public interface IProgressEstimator : IResults
     {

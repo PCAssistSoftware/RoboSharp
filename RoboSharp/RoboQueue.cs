@@ -26,7 +26,7 @@ namespace RoboSharp
     /// <see cref="IDisposable"/> -- Allow disposal of all <see cref="IRoboCommand"/> objects in the list.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/RoboQueue"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboQueue"/>
     /// </remarks>
     public sealed class RoboQueue : IRoboQueue, IDisposable, INotifyPropertyChanged, IEnumerable<IRoboCommand>, INotifyCollectionChanged
     {

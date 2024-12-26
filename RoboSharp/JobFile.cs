@@ -17,7 +17,7 @@ namespace RoboSharp
     /// <see cref="ICloneable"/> <br/>
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/JobFile"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/JobFile"/>
     /// </remarks>
     public class JobFile : ICloneable, IRoboCommand
     {

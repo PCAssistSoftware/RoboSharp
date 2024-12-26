@@ -16,9 +16,9 @@
       <Version>1.6.1</Version>
       <Copyright>Copyright 2024</Copyright>
       <Authors>Robert Brenckman</Authors>
-      <owners>Terry | Robert Brenckman</owners>
+      <owners>Terry | PC Assist Software | Robert Brenckman</owners>
       
-      <PackageProjectUrl>https://github.com/tjscience/RoboSharp</PackageProjectUrl>
+      <PackageProjectUrl>https://github.com/PCAssistSoftware/RoboSharp</PackageProjectUrl>
       <PackageIcon>robosharp.png</PackageIcon>
       <PackageReadmeFile>readme.md</PackageReadmeFile>
       <license>license</license>

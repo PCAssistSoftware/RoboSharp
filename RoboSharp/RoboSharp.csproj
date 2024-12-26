@@ -15,11 +15,11 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Version>1.6.0</Version>
         <Copyright>Copyright 2024</Copyright>
-        <Authors>Terry</Authors>
-        <owners>Terry</owners>
+        <Authors>Terry | PC Assist Software</Authors>
+        <owners>Terry | PC Assist Software</owners>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <license>license</license>
-        <PackageProjectUrl>https://github.com/tjscience/RoboSharp</PackageProjectUrl>
+        <PackageProjectUrl>https://github.com/PCAssistSoftware/RoboSharp</PackageProjectUrl>
         <PackageIcon>robosharp.png</PackageIcon>
         <PackageReadmeFile>readme.md</PackageReadmeFile>
         <Description>RoboSharp is a .NET wrapper for the awesome Robocopy windows application.</Description>

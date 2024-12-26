@@ -27,7 +27,7 @@ namespace RoboSharp.Results
     /// }<br/>
     /// </code>
     /// <para/>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/ProgressEstimator"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/ProgressEstimator"/>
     /// </remarks>
     public class ProgressEstimator : IProgressEstimator, IResults
     {

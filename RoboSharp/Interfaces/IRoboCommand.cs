@@ -6,7 +6,7 @@ namespace RoboSharp.Interfaces
     /// 
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/IRoboCommand"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/IRoboCommand"/>
     /// </remarks>
     public interface IRoboCommand
     {

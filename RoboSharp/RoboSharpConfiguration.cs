@@ -11,7 +11,7 @@ namespace RoboSharp
     /// Setup the ErrorToken and the path to RoboCopy.exe.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/RoboSharpConfiguration"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboSharpConfiguration"/>
     /// </remarks>
     public class RoboSharpConfiguration : ICloneable
     {

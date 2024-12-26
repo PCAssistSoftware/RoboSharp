@@ -15,7 +15,7 @@ namespace RoboSharp.Results
     /// Note: Runs that do not perform any copy operations or that exited prematurely ( <see cref="RoboCopyExitCodes.Cancelled"/> ) will result in a null <see cref="SpeedStatistic"/> object.
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/SpeedStatistic"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/SpeedStatistic"/>
     /// </remarks>
     public partial class SpeedStatistic : INotifyPropertyChanged, ISpeedStatistic
     {

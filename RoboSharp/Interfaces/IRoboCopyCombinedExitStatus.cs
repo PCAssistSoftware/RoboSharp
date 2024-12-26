@@ -11,7 +11,7 @@ namespace RoboSharp.Interfaces
     /// Read-Only interface for <see cref="RoboCopyCombinedExitStatus"/>
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/IRoboCopyCombinedExitStatus"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/IRoboCopyCombinedExitStatus"/>
     /// </remarks>
     public interface IRoboCopyCombinedExitStatus : INotifyPropertyChanged, ICloneable
     {

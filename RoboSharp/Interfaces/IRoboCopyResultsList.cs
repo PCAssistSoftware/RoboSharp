@@ -14,7 +14,7 @@ namespace RoboSharp.Interfaces
     /// <see cref="ICloneable"/>
     /// </summary>
     /// <remarks>
-    /// <see href="https://github.com/tjscience/RoboSharp/wiki/IRoboCopyResultsList"/>
+    /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/IRoboCopyResultsList"/>
     /// </remarks>
     public interface IRoboCopyResultsList : IResults, IEnumerable<RoboCopyResults>, INotifyCollectionChanged
     {
