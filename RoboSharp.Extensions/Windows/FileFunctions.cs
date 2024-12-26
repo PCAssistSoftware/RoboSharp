@@ -15,6 +15,9 @@ namespace RoboSharp.Extensions.Windows
     /// <summary>
     /// Windows-Specific Functionality and Extensions for Moving Files
     /// </summary>
+#if NET5_0_OR_GREATER
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#endif
     public static partial class FileFunctions
     {
         /// <summary>

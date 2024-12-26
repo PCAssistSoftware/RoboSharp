@@ -15,6 +15,9 @@ namespace RoboSharp.Extensions.Windows
     /// Class that extends <see cref="FilePair"/> to implement Copy/Move async methods via CopyFileEx.
     /// <br/>This class is only usable on a Windows platform!
     /// </summary>
+#if NET5_0_OR_GREATER
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#endif
     public partial class CopyFileEx : AbstractFileCopier
     {
         private bool _isCopied;
