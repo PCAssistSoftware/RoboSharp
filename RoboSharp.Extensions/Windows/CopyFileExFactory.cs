@@ -12,6 +12,9 @@ namespace RoboSharp.Extensions.Windows
     /// <see cref="IFileCopierFactory"/> that creates <see cref="CopyFileEx"/> objects with a specified set of <see cref="Windows.CopyFileExOptions"/>
     /// <br/>This class is only usable on a Windows platform!
     /// </summary>
+#if NET5_0_OR_GREATER
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+#endif
     public sealed class CopyFileExFactory : AbstractFileCopierFactory<CopyFileEx>, IFileCopierFactory
     {
         /// <summary>

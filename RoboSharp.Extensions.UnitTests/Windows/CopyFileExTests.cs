@@ -43,10 +43,10 @@ namespace RoboSharp.Extensions.Windows.UnitTests
             IFileCopierFactory factory = new CopyFileExFactory() { Options = CopyFileExOptions.NONE };
             if (VersionManager.IsPlatformWindows)
             {
-                _ = await IFileCopierTests.RunTest(factory);
+                await IFileCopierTests.RunTests(factory);
             }
             else
-                await Assert.ThrowsExceptionAsync<PlatformNotSupportedException>(() => IFileCopierTests.RunTest(factory));
+                await Assert.ThrowsExceptionAsync<PlatformNotSupportedException>(() => IFileCopierTests.RunTests(factory));
         }
 
         [TestMethod]
