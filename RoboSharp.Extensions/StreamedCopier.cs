@@ -116,7 +116,14 @@ namespace RoboSharp.Extensions
                     Memory<byte> buffer = new byte[bSize];
                     while ((bytesRead = await reader.ReadAsync(buffer, _cancellationSource.Token)) > 0)
                     {
-                        await writer.WriteAsync(buffer, _cancellationSource.Token);
+                        if (bytesRead < bSize)
+                        {
+                            // account for last read of the file having less than buffer length
+                            await writer.WriteAsync(buffer.Slice(0, bytesRead), _cancellationSource.Token);
+                        }else
+                        {
+                            await writer.WriteAsync(buffer, _cancellationSource.Token);
+                        }
                         totalBytesRead += bytesRead;
                         if (shouldUpdate) OnProgressUpdated(CalcProgress());
                         while (IsPaused && !_cancellationSource.IsCancellationRequested)
@@ -136,6 +143,10 @@ namespace RoboSharp.Extensions
                     writer.Dispose();
                     reader.Dispose();
                     updatePeriod.Dispose();
+                    // Ensure that the file attributes and modify date match as if copied via File.CopyTo
+                    Destination.Refresh();
+                    Destination.Attributes = Destination.Attributes;
+                    Destination.LastWriteTimeUtc = Source.LastWriteTimeUtc;
                 }
                 catch (OperationCanceledException)
                 {

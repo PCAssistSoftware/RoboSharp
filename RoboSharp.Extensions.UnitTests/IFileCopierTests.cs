@@ -372,6 +372,7 @@ namespace RoboSharp.Extensions.Tests
                 Console.WriteLine($"Source      Length: {copier.Source.Length}");
                 Console.WriteLine($"File.CopyTo Length: {c.Length}");
                 Console.WriteLine($"IFileCopier Length: {copier.Destination.Length}");
+                Console.WriteLine($"Difference in length (ifileCopier - source) : {copier.Destination.Length - copier.Source.Length}");
                 Console.WriteLine("-----");
                 Console.WriteLine($"Source      Attributes: {copier.Source.Attributes}");
                 Console.WriteLine($"File.CopyTo Attributes: {c.Attributes}");
