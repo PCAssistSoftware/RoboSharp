@@ -13,7 +13,7 @@
       <NetFrameworkRegex><![CDATA[^net((4[5-8][0-2]?)|(.*2.0))$]]></NetFrameworkRegex>
       <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
       
-      <Version>1.6.0</Version>
+      <Version>1.6.1</Version>
       <Copyright>Copyright 2024</Copyright>
       <Authors>Robert Brenckman</Authors>
       <owners>Terry | Robert Brenckman</owners>
@@ -37,7 +37,7 @@
            - RoboMover always checks if the Source and Destination are on the same root, and if files are getting moved. If both conditions are true, it performs the move. If either condition is false, it will run as a standard RoboCommand.
       </Description>
       <PackageReleaseNotes>
-          - Now provides a wrapper for the CopyFileEx utility to allow for asynchronous file movement.
+          - Fixed an issue with StreamedCopier that resulted in incorrect file sizes.
       </PackageReleaseNotes>
   </PropertyGroup>
 
