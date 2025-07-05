@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Win32.Storage.FileSystem;
 
 
 namespace RoboSharp.Extensions.Windows.UnitTests
@@ -15,16 +16,20 @@ namespace RoboSharp.Extensions.Windows.UnitTests
     [TestClass]
     public class SymbolicLinkTests
     {
-        static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RoboSharp.SymbolicLinkTesting");
+        static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RoboSharp.SymbolicLinkTesting");
+        static readonly string TargetRoot = Path.Combine(Root, "Targets");
+
         const string ERD = "\n>>\t";
         static string RandomName() => Path.GetFileNameWithoutExtension(Path.GetRandomFileName());
 
         [TestInitialize]
         public void Initialize_SymbolicLinkTest()
         {
-            Console.WriteLine("----------------------\n THIS TEST REQUIRES ADMIN PRIVILEGES AT RUN-TIME");
+            Console.WriteLine("----------------------\n THIS TEST REQUIRES ADMIN PRIVILEGES (OR DEVELOPER-MODE ENABLED) AT RUN-TIME ");
             RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
             Directory.CreateDirectory(Root);
+            Directory.CreateDirectory(TargetRoot);
+            SymbolicLink.ALLOW_UNPRIVILEGED_CREATE = true;
         }
 
         [TestCleanup]
@@ -36,8 +41,9 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         [TestMethod]
         public void Test_SymbolicDirectory()
         {
+            DirectoryInfo target = new DirectoryInfo(Path.Combine(TargetRoot, RandomName(), RandomName()));
             DirectoryInfo link = new DirectoryInfo(Path.Combine(Root, RandomName()));
-            DirectoryInfo target = new DirectoryInfo(Path.Combine(Root, RandomName(), RandomName()));
+
             target.Create();
             Console.WriteLine($"Link = {link.FullName}\nTarget = {target.FullName}");
 
@@ -52,15 +58,16 @@ namespace RoboSharp.Extensions.Windows.UnitTests
             Console.WriteLine(" -- Success");
             
             Console.Write("- Creating Symbolic Link");
-            link.CreateAsSymbolicLink(target.FullName);
+            SymbolicLink.CreateAsSymbolicLink(link, target.FullName);
+            //link.CreateAsSymbolicLink(target.FullName);
             link.Refresh();
             Assert.IsTrue(link.Exists, $"{ERD}Link was not created");
             Console.WriteLine(" -- Success");
 
             Console.Write("- Running Link Assertions");
-            Assert.IsTrue(link.IsSymbolicLink(), $"{ERD}Failed IsSymbolicLink() -- test 1");
+            Assert.IsTrue(SymbolicLink.IsSymbolicLink(link), $"{ERD}Failed IsSymbolicLink() -- test 1");
             Assert.IsTrue(SymbolicLink.IsSymbolicLink(link.FullName, true), $"{ERD}Failed IsSymbolicLink() -- test 2");
-            Assert.AreEqual(target.FullName, link.ResolveLinkTarget(true)?.FullName, $"{ERD}Failed to resolve target path - test 1");
+            Assert.AreEqual(target.FullName, SymbolicLink.ResolveLinkTarget(link, true)?.FullName, $"{ERD}Failed to resolve target path - test 1");
             Assert.AreEqual(target.FullName, SymbolicLink.GetReparseDataTarget(link.FullName, true), $"{ERD}Failed to resolve target path - test 2");
             string fpath = SymbolicLink.GetFinalPathNameByHandle(link);
             Assert.AreEqual(target.FullName, fpath, $"{ERD}GetFinalPathNameByHandle() reported unexpected result\nExpected : {target.FullName}\n  Actual : {fpath}");
@@ -78,7 +85,7 @@ namespace RoboSharp.Extensions.Windows.UnitTests
             SymbolicLink.CreateAsSymbolicLink(link.FullName, target.FullName, true, true);
             link.Refresh();
             Assert.IsTrue(link.Exists, $"{ERD}Link was not created");
-            Assert.IsTrue(link.IsSymbolicLink(), $"{ERD}Not detected as symbolic link - test 1");
+            Assert.IsTrue(SymbolicLink.IsSymbolicLink(link), $"{ERD}Not detected as symbolic link - test 1");
             Assert.IsTrue(SymbolicLink.IsSymbolicLink(link.FullName, true), $"{ERD}Not detected as symbolic link - test 2");
             fpath = SymbolicLink.GetFinalPathNameByHandle(link);
             Assert.AreEqual(target.FullName, fpath, $"{ERD}GetFinalPathNameByHandle() reported unexpected result\nExpected : {target.FullName}\n  Actual : {fpath}");
@@ -92,10 +99,11 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         [TestMethod]
         public void Test_SymbolicFile()
         {
-            FileInfo target = new FileInfo(Path.GetTempFileName());
+            FileInfo target = new FileInfo(Path.Combine(TargetRoot, Path.GetFileNameWithoutExtension(Path.GetRandomFileName()) + ".txt"));
+            FileInfo link = new FileInfo(Path.Combine(Root, target.Name));
             try
             {
-                FileInfo link = new FileInfo(Path.Combine(Root, Path.GetFileName(Path.GetRandomFileName())));
+
                 Console.WriteLine($"Link = {link.FullName}\nTarget = {target.FullName}");
                 string targetText = "This is the Target File";
                 Console.Write($"\n- Writing to target");
@@ -106,15 +114,15 @@ namespace RoboSharp.Extensions.Windows.UnitTests
                 }
                 Console.WriteLine(" -- Success");
                 Console.Write("- Creating Symbolic Link");
-                link.CreateAsSymbolicLink(target.FullName);
+                SymbolicLink.CreateAsSymbolicLink(link, target.FullName);
                 link.Refresh();
                 Assert.IsTrue(link.Exists, "Link was not created");
                 Console.WriteLine(" -- Success");
 
                 Console.Write("- Running Link Assertions");
-                Assert.IsTrue(link.IsSymbolicLink(), $"{ERD}Failed IsSymbolicLink() -- test 1");
+                Assert.IsTrue(SymbolicLink.IsSymbolicLink(link), $"{ERD}Failed IsSymbolicLink() -- test 1");
                 Assert.IsTrue(SymbolicLink.IsSymbolicLink(link.FullName, false), $"{ERD}Failed IsSymbolicLink() -- test 2");
-                Assert.AreEqual(target.FullName, link.ResolveLinkTarget(true)?.FullName, $"{ERD}Failed to resolve target path - test 1");
+                Assert.AreEqual(target.FullName, SymbolicLink.ResolveLinkTarget(link, true)?.FullName, $"{ERD}Failed to resolve target path - test 1");
                 Assert.AreEqual(target.FullName, SymbolicLink.GetReparseDataTarget(link.FullName, false), $"{ERD}Failed to resolve target path - test 2");
                 string fpath = SymbolicLink.GetFinalPathNameByHandle(link);
                 Assert.AreEqual(target.FullName, fpath, $"{ERD}GetFinalPathNameByHandle() reported unexpected result\nExpected : {target.FullName}\n  Actual : {fpath}");
@@ -158,6 +166,9 @@ namespace RoboSharp.Extensions.Windows.UnitTests
             {
                 if (File.Exists(target.FullName))
                     File.Delete(target.FullName);
+
+                if (File.Exists(link.FullName))
+                    File.Delete(link.FullName);
             }
         }
 

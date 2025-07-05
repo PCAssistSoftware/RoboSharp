@@ -1,0 +1,27 @@
+<Playlist Version="2.0">
+  <Rule Name="Includes" Match="Any">
+    <Rule Match="All">
+      <Property Name="Solution" />
+      <Rule Match="Any">
+        <Rule Match="All">
+          <Property Name="Project" Value="RoboSharp.Extensions.UnitTests (net5.0)" />
+          <Rule Match="Any">
+            <Property Name="Namespace" Value="RoboSharp.Extensions.Windows.UnitTests" />
+          </Rule>
+        </Rule>
+        <Rule Match="All">
+          <Property Name="Project" Value="RoboSharp.Extensions.UnitTests (net472)" />
+          <Rule Match="Any">
+            <Property Name="Namespace" Value="RoboSharp.Extensions.Windows.UnitTests" />
+          </Rule>
+        </Rule>
+        <Rule Match="All">
+          <Property Name="Project" Value="RoboSharp.Extensions.UnitTests (net8.0)" />
+          <Rule Match="Any">
+            <Property Name="Namespace" Value="RoboSharp.Extensions.Windows.UnitTests" />
+          </Rule>
+        </Rule>
+      </Rule>
+    </Rule>
+  </Rule>
+</Playlist>

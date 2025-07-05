@@ -1,6 +1,8 @@
-﻿#pragma warning disable CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
-#pragma warning disable IDE0079 // Remove unnecessary suppression
+﻿#pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable CA1416 // Validate platform compatibility
+
+#nullable enable
+#nullable disable warnings
 
 using System;
 using System.IO;
@@ -24,6 +26,26 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
     {
         const string PlatformErrorMessage = "This function relies on Windows P/Invoke. Use .Net 6 or newer for platform comaptibility.";
         const string NotFoundErrorMessage = "Could not find a part of the path '{0}'.";
+
+        /// <summary>
+        /// When set true, passes in the "SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE = 0x2" flag to the call when creating symbolic links. 
+        /// <br/>Default is <see langword="false"/>, which indicates that admin privileges are required for creation of links.
+        /// </summary>
+        /// <remarks>
+        /// Specify this flag to allow creation of symbolic links when the process is not elevated. 
+        /// <br/> - In UWP (and Visual Studio), Developer Mode must first be enabled on the machine before this option will function. 
+        /// <br/> - Under MSIX, developer mode is not required to be enabled for this flag. 
+        /// <br/><seealso href="https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsymboliclinka"/>
+        /// </remarks>
+        public static bool ALLOW_UNPRIVILEGED_CREATE = false;
+
+        private static SYMBOLIC_LINK_FLAGS GetFLAGS(bool isDirectory)
+        {
+            if (isDirectory && ALLOW_UNPRIVILEGED_CREATE) return (SYMBOLIC_LINK_FLAGS)0x3;
+            if (isDirectory) return (SYMBOLIC_LINK_FLAGS)0x1;
+            if (ALLOW_UNPRIVILEGED_CREATE) return (SYMBOLIC_LINK_FLAGS)0x2;
+            return 0x0;
+        }
 
         /// <summary>
         /// Determines whether this <see cref="FileSystemInfo"/> represents a symbolic link or junction.
@@ -85,7 +107,7 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
                 pathToTarget = GetTargetPathRelativeToLink(link, pathToTarget, isDirectory);
             }
 
-            var success = Win32.PInvoke.CreateSymbolicLink(link, pathToTarget, isDirectory ? SYMBOLIC_LINK_FLAGS.SYMBOLIC_LINK_FLAG_DIRECTORY : 0);
+            var success = Win32.PInvoke.CreateSymbolicLink(link, pathToTarget, GetFLAGS(isDirectory));
             if (!success)
             {
                 try
@@ -103,12 +125,36 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
         public static void CreateAsSymbolicLink(FileSystemInfo link, string pathToTarget, bool makeTargetRelative)
             => CreateAsSymbolicLink(link?.FullName ?? throw new ArgumentNullException(nameof(link)), pathToTarget, link is DirectoryInfo, makeTargetRelative);
 
+        /// <summary>
+        /// Creates a symbolic link at the <see cref="FileSystemInfo.FullName"/> that points to the <paramref name="pathToTarget"/>
+        /// </summary>
+        /// <param name="link">The FileSystemInfo object that represents the link to to be created. 
+        /// <br/>Link will be created at the <see cref="FileSystemInfo.FullName"/></param>
+        /// <param name="pathToTarget">
+        /// The path of the symbolic link target.
+        /// <para/><inheritdoc cref="Win32.PInvoke.CreateSymbolicLink(string, string, SYMBOLIC_LINK_FLAGS)" path="/param[@name='lpTargetFileName']"/>
+        /// </param>
+        /// <remarks>Windows only. Requires administractive privileges or <see cref="ALLOW_UNPRIVILEGED_CREATE"/> = <see langword="true"/></remarks>
+        /// <inheritdoc cref="CreateAsSymbolicLink(string, string, bool, bool)"/>
 #if NET6_0_OR_GREATER
+        public static void CreateAsSymbolicLink(FileSystemInfo link, string pathToTarget)
+        {
+            if (VersionManager.IsPlatformWindows == false || ALLOW_UNPRIVILEGED_CREATE == false)
+            {
+                link.CreateAsSymbolicLink(pathToTarget);
+                return;
+            }
+#else
+        public static void CreateAsSymbolicLink(this FileSystemInfo link, string pathToTarget)
+        {
+#endif
+            VersionManager.ThrowIfNotWindowsPlatform(PlatformErrorMessage);
+            if (link is null) throw new ArgumentNullException(nameof(link));
+            if (string.IsNullOrWhiteSpace(pathToTarget)) throw new ArgumentException("target path can not be empty", nameof(pathToTarget));
+            SymbolicLink.CreateAsSymbolicLink(link.FullName, pathToTarget, link is DirectoryInfo, false);
+        }
 
-        /// <remarks>Exposed here for binary compatibility.<br/>Calls the native method <see cref="FileSystemInfo.ResolveLinkTarget(bool)"/>.</remarks>
-        /// <inheritdoc cref="FileSystemInfo.CreateAsSymbolicLink(string)"/>
-        public static void CreateAsSymbolicLink(FileSystemInfo link, string pathToTarget) => link.CreateAsSymbolicLink(pathToTarget);
-
+#if NET6_0_OR_GREATER
         /// <remarks>Exposed here for binary compatibility.<br/>Calls the native method <see cref="FileSystemInfo.ResolveLinkTarget(bool)"/>.</remarks>
         /// <inheritdoc cref="FileSystemInfo.ResolveLinkTarget(bool)"/>
         public static FileSystemInfo? ResolveLinkTarget(FileSystemInfo link, bool returnFinalTarget)
@@ -116,24 +162,6 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
             return link?.ResolveLinkTarget(returnFinalTarget);
         }
 #else
-
-        /// <summary>
-        /// Creates a symbolic link at the <see cref="FileSystemInfo.FullName"/> that points to the <paramref name="pathToTarget"/>
-        /// </summary>
-        /// <param name="link">The file or directory to create as a link</param>
-        /// <param name="pathToTarget">
-        /// The path of the symbolic link target.
-        /// <para/><inheritdoc cref="Win32.PInvoke.CreateSymbolicLink(string, string, SYMBOLIC_LINK_FLAGS)" path="/param[@name='lpTargetFileName']"/>
-        /// </param>
-        /// <remarks>Requires administractive privileges. Windows only.</remarks>
-        /// <inheritdoc cref="CreateAsSymbolicLink(string, string, bool, bool)"/>
-        public static void CreateAsSymbolicLink(this FileSystemInfo link, string pathToTarget)
-        {
-            VersionManager.ThrowIfNotWindowsPlatform(PlatformErrorMessage);
-            if (link is null) throw new ArgumentNullException(nameof(link));
-            if (string.IsNullOrWhiteSpace(pathToTarget)) throw new ArgumentException("target path can not be empty", nameof(pathToTarget));
-            SymbolicLink.CreateAsSymbolicLink(link.FullName, pathToTarget, link is DirectoryInfo, false);
-        }
 
         /// <summary>
         /// Gets the target of the specified link.
@@ -179,10 +207,7 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
             bool result;
             unsafe
             {
-                fixed (char* builder = relativePath)
-                {
-                    result = Win32.PInvoke.PathRelativePathTo(builder, linkPath, (uint)relativePathAttribute, targetPath, (uint)relativePathAttribute);
-                }
+                result = Win32.PInvoke.PathRelativePathTo(relativePath, linkPath, (uint)relativePathAttribute, targetPath, (uint)relativePathAttribute);
             }
             if (result is false)
             {
@@ -249,18 +274,13 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
             uint result;
             Span<char> text = new char[Win32.PInvoke.MAX_PATH];
             text.Clear();
-            fixed (char* builder = text)
-            {
-                result = Win32.PInvoke.GetFinalPathNameByHandle(fileHandle, builder, Win32.PInvoke.MAX_PATH, GETFINALPATHNAMEBYHANDLE_FLAGS.FILE_NAME_NORMALIZED);
-            }
+            
+            result = Win32.PInvoke.GetFinalPathNameByHandle(fileHandle, text, GETFINALPATHNAMEBYHANDLE_FLAGS.FILE_NAME_NORMALIZED);
             if (result > Win32.PInvoke.MAX_PATH) // if not enough characters alloted, retry with required character count (supplied by the previous call's result)
             {   
                 text = new char[result];
                 text.Clear();
-                fixed (char* builder = text)
-                {
-                    result = Win32.PInvoke.GetFinalPathNameByHandle(fileHandle, builder, result, GETFINALPATHNAMEBYHANDLE_FLAGS.FILE_NAME_NORMALIZED);
-                }
+                result = Win32.PInvoke.GetFinalPathNameByHandle(fileHandle, text, GETFINALPATHNAMEBYHANDLE_FLAGS.FILE_NAME_NORMALIZED);
             }
 
             if (result == 0)
@@ -330,13 +350,10 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
             
             using SafeFileHandle fileHandle = GetSafeFileHandle(link, isDirectory, true);
 
-            int bufferSize;
-            bufferSize = (int)Win32.PInvoke.MAXIMUM_REPARSE_DATA_BUFFER_SIZE;
-
-            Span<sbyte> outBuffer = new sbyte[bufferSize];
+            Span<byte> outBuffer = new byte[Win32.PInvoke.MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
             outBuffer.Clear();
 
-            fixed (sbyte* outBufferPtr = outBuffer)
+            fixed (byte* outBufferPtr = outBuffer)
             {
                 uint bytes;
                 bool success = Win32.PInvoke.DeviceIoControl(fileHandle, Win32.PInvoke.FSCTL_GET_REPARSE_POINT, null, 0U, outBufferPtr, (uint)outBuffer.Length, &bytes, null);
@@ -361,13 +378,15 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
 
                 ref var data = ref *(REPARSE_DATA_BUFFER*)outBufferPtr;
 
-                Span<char> targetSpan;
                 switch (data.ReparseTag)
                 {
                     case Win32.PInvoke.IO_REPARSE_TAG_SYMLINK:
                         ref var symReparse = ref data.Anonymous.SymbolicLinkReparseBuffer;
+                        
+                        var targetSpan = symReparse.PathBuffer
+                            .AsSpan((int)(bytes / sizeof(char)))
+                            .Slice(symReparse.SubstituteNameOffset / sizeof(char), symReparse.SubstituteNameLength/sizeof(char));
 
-                        targetSpan = symReparse.PathBuffer.AsSpan((int)bytes / sizeof(char)).Slice(symReparse.SubstituteNameOffset / sizeof(char), symReparse.SubstituteNameLength/sizeof(char));
                         return true switch
                         {
                             true when symReparse.Flags == MSWin.Wdk.PInvoke.SYMLINK_FLAG_RELATIVE => targetSpan.ToString(),
@@ -391,4 +410,3 @@ namespace RoboSharp.Extensions.SymbolicLinkSupport
 
 #pragma warning restore CA1416 // Validate patform compatibility
 #pragma warning restore IDE0079 // Remove unnecessary suppression
-#pragma warning restore CS8632 // The annotation for nullable reference types should only be used in code within a '#nullable' annotations context.
