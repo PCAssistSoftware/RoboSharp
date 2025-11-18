@@ -7,8 +7,6 @@
             netstandard2.0;
             netstandard2.1;
             netcoreapp3.1;
-            net5.0;
-            net6.0;
             net8.0;
         </TargetFrameworks>
         <NetFrameworkRegex><![CDATA[^net4[5-8][0-2]?$]]></NetFrameworkRegex>
@@ -33,15 +31,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\readme.md" Pack="true" PackagePath="\"/>
-        <None Include="..\robosharp.png" Pack="true" PackagePath="\"/>
-        <None Include="..\license" Pack="true" PackagePath="\"/>
+        <None Include="..\readme.md" Pack="true" PackagePath="\" />
+        <None Include="..\robosharp.png" Pack="true" PackagePath="\" />
+        <None Include="..\license" Pack="true" PackagePath="\" />
     </ItemGroup>
     
     <!-- Conditional Target Requirements -->
     <Choose>
         <!-- NetFramework -->
-        <When Condition=" $([System.Text.RegularExpressions.Regex]::IsMatch('$(TargetFramework)', '$(NetFrameworkRegex)'))" >
+        <When Condition=" $([System.Text.RegularExpressions.Regex]::IsMatch('$(TargetFramework)', '$(NetFrameworkRegex)'))">
             <PropertyGroup>
                 <langversion>8.0</langversion>
             </PropertyGroup>
