@@ -1,28 +1,30 @@
-version: 1.2.{build}
-
-branches:
-  only:
-    - dev
-
 image: Visual Studio 2022
 
 environment:
-  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 install:
+  # Install .NET 10 
   - ps: |
       Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
-      ./dotnet-install.ps1 -Channel 10.0 -Quality preview
+      ./dotnet-install.ps1 -Channel 10.0
       $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
       dotnet --info
 
-build_script:
+before_build:
+  # Restore NuGet packages using dotnet CLI (works for multi-target SDK projects)
   - cmd: dotnet restore RoboSharp.sln
-  - cmd: dotnet build RoboSharp.sln --configuration Debug
-  - cmd: dotnet pack RoboSharp.sln --configuration Release --output nupkg
-  
+
+build_script:
+  # Build solution using dotnet CLI
+  - cmd: dotnet build RoboSharp.sln --configuration Debug --no-restore
+
+artifacts:
+  - path: "**\bin\Debug\**\*.nupkg"
+    name: nupkg
+
 deploy:
-- provider: NuGet
-  api_key:
+  - provider: NuGet
+    api_key:
     secure: iPtUkccsoDLr8xgpLJMDxVJNZCwEDg/KZCfB/Qjm8EXNO7DCiYYxOCjexaez7Lhp
