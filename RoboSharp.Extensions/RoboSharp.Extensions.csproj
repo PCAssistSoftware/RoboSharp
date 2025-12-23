@@ -6,11 +6,12 @@
           netstandard2.0;
           netstandard2.1;
           net8.0;
-          net10.0;</TargetFrameworks>
+          net10.0;
+	  </TargetFrameworks>
       <NetFrameworkRegex><![CDATA[^net((4[5-8][0-2]?)|(.*2.0))$]]></NetFrameworkRegex>
       <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
       
-      <Version>1.6.1</Version>
+      <Version>1.6.2</Version>
       <Copyright>Copyright 2025</Copyright>
       <Authors>Robert Brenckman</Authors>
       <owners>Terry | PC Assist Software | Robert Brenckman</owners>
