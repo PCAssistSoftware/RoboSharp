@@ -1,0 +1,37 @@
+image: Visual Studio 2022
+
+environment:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+install:
+  - ps: |
+      $ErrorActionPreference = 'Stop'
+      Write-Host "Checking already installed dotnet SDKs..."
+      dotnet --list-sdks
+      $sdkNeeded = "10.0."
+      $dotnetSdks = & dotnet --list-sdks
+      if ($dotnetSdks -notcontains ($dotnetSdks | Where-Object { $_ -like "$sdkNeeded*" })) {
+        Write-Host ".NET 10.0 SDK not found, downloading and installing..."
+        $url = "https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-10.0.101-windows-x64-installer"
+        $outFile = "dotnet-sdk-10.exe"
+        Invoke-WebRequest -Uri $url -OutFile $outFile
+        Start-Process -FilePath ".\dotnet-sdk-10.exe" -ArgumentList "/quiet", "/norestart" -Wait
+      } else {
+        Write-Host ".NET 10.0 SDK is already installed."
+      }
+      Write-Host "SDKs after potential installation:"
+      dotnet --list-sdks
+      dotnet --info
+
+build_script:
+  - dotnet --version
+  - dotnet restore
+  - dotnet build --configuration Release
+
+test_script:
+  - dotnet test --configuration Release
+
+artifacts:
+  - path: '**\bin\Release\*.*'
+    name: ReleaseOutput
