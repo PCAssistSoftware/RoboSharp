@@ -12,7 +12,7 @@
         <NetFrameworkRegex><![CDATA[^net4[5-8][0-2]?$]]></NetFrameworkRegex>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Version>1.6.2</Version>
-        <Copyright>Copyright 2025</Copyright>
+        <Copyright>Copyright 2026</Copyright>
         <Authors>Terry | PC Assist Software</Authors>
         <owners>Terry | PC Assist Software</owners>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
