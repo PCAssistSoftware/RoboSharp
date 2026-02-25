@@ -304,6 +304,7 @@ namespace RoboSharp
         ///D Data
         ///A Attributes
         ///T Time stamps
+        ///X Skip alt data streams
         ///S NTFS access control list (ACL)
         ///O Owner information
         ///U Auditing information
@@ -523,7 +524,7 @@ namespace RoboSharp
 
         /// <summary>
         /// What to copy for directories (default is DA).
-        /// (copyflags: D=Data, A=Attributes, T=Timestamps).
+        /// (copyflags: D=Data, A=Attributes, T=Timestamps, E=Extended attribute, X=Skip alt data streams).
         /// [/DCOPY:copyflags]
         /// </summary>
         [DefaultValue("DA")]
