@@ -1,9 +1,12 @@
-﻿using System;
+﻿using RoboSharp.Extensions.Options;
+using RoboSharp.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Helpers
@@ -13,6 +16,121 @@ namespace RoboSharp.Extensions.Helpers
     /// </summary>
     public static class IFilePairExtensions
     {
+        /// <summary>
+        /// Evaluate a <see cref="IFilePair"/> against the <paramref name="command"/> options to determine if it should be copied or not.
+        /// </summary>
+        /// <param name="pair">the file pair to evaluate</param>
+        /// <param name="command">The associated command</param>
+        /// <param name="copyOptions_FileNameNameInclusions"><see cref="Options.CopyExtensions.GetFileFilterRegex(CopyOptions)"/></param>
+        /// <param name="SelectionOptions_FileNameNameExclusions"><see cref="Options.SelectionExtensions.GetExcludedFileRegex(SelectionOptions)"/></param>
+        /// <returns></returns>
+        public static bool ProcessFilePairAgainstCommandOptions(this IFileCopier pair, IRoboCommand command, IEnumerable<Regex> copyOptions_FileNameNameInclusions, IEnumerable<Regex> SelectionOptions_FileNameNameExclusions)
+        {
+            var sOptions = command.SelectionOptions;
+            pair.ShouldCopy = false;
+            
+            // Extra
+            if (pair.IsExtra())
+            {
+                pair.ProcessedFileInfo = new ProcessedFileInfo(pair.Destination, command, ProcessedFileFlag.ExtraFile);
+                _ = command.ShouldPurge(pair); // process for purging
+                return false;
+            }
+
+            pair.ShouldPurge = false;
+            ProcessedFileInfo pInfo = pair.ProcessedFileInfo ??= new ProcessedFileInfo(pair.Source, command, ProcessedFileFlag.None);
+
+            // lonely files 
+            if (sOptions.ShouldExcludeLonely(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.NewFile, command.Configuration);
+                return false;
+            }
+
+            // file age
+            if (sOptions.ShouldExcludeMaxFileAge(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.MaxAgeSizeExclusion, command.Configuration);
+                return false;
+            }
+            if (sOptions.ShouldExcludeMinFileAge(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.MinAgeSizeExclusion, command.Configuration);
+                return false;
+            }
+
+            // file size
+            if (sOptions.ShouldExcludeMaxFileSize(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.MaxFileSizeExclusion, command.Configuration);
+                return false;
+            }
+            if (sOptions.ShouldExcludeMinFileSize(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.MinFileSizeExclusion, command.Configuration);
+                return false;
+            }
+
+            // older / newer
+            if (sOptions.ShouldExcludeNewer(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.NewerFile, command.Configuration);
+                return false;
+            }
+            if (sOptions.ShouldExcludeOlder(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.OlderFile, command.Configuration);
+                return false;
+            }
+
+            // access date
+            if (sOptions.ShouldExcludeMaxLastAccessDate(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return false;
+            }
+            if (sOptions.ShouldExcludeMinLastAccessDate(pair))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return false;
+            }
+
+            if (sOptions.ShouldIncludeAttributes(pair) == false)
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.AttribExclusion, command.Configuration);
+                return false;
+            }
+
+            // potentially expensive regex tests
+            if (!Options.CopyExtensions.ShouldIncludeFileName(command.CopyOptions, pair.Source, copyOptions_FileNameNameInclusions))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return false;
+            }
+
+            if (Options.SelectionExtensions.ShouldExcludeFileName(command.SelectionOptions, pair.Source, SelectionOptions_FileNameNameExclusions))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return false;
+            }
+
+            if (pair.IsSameDate())
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.SameFile, command.Configuration);
+                pair.ShouldCopy = command.SelectionOptions.IncludeSame;
+                return pair.ShouldCopy;
+            }
+
+            pair.ShouldCopy = true;
+            ProcessedFileFlag flag = pair.IsLonely() ? ProcessedFileFlag.NewFile
+                : pair.IsSourceNewer() ? ProcessedFileFlag.NewerFile
+                : pair.IsDestinationNewer() ? ProcessedFileFlag.OlderFile
+                : pair.IsSameDate() ? ProcessedFileFlag.SameFile : ProcessedFileFlag.TweakedInclusion;
+
+            pInfo.SetFileClass(flag, command.Configuration);
+            return true;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool FileDoesntExist(string destination) => !File.Exists(destination);
 

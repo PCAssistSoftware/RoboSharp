@@ -121,7 +121,7 @@ namespace RoboSharp
         /// <inheritdoc cref="CheckDestinationDirectory" path="/remarks"/> <br/>
         /// </remarks>
         /// <returns><see langword="true"/> if both the source and destination are accessible, otherwise <see langword="false"/></returns>
-        private static AuthenticationResult CheckSourceAndDestinationDirectories(IRoboCommand command)
+        public static AuthenticationResult CheckSourceAndDestinationDirectories(IRoboCommand command)
         {
             var source = CheckSourceDirectory(command);
             if (source.Success)
@@ -134,7 +134,7 @@ namespace RoboSharp
         /// Check that the source directory exists.
         /// </remarks>
         /// <returns><see langword="true"/> if the source is accessible, otherwise <see langword="false"/></returns>
-        private static AuthenticationResult CheckSourceDirectory(IRoboCommand command)
+        public static AuthenticationResult CheckSourceDirectory(IRoboCommand command)
         {
             const string SourceMissing = "The Source directory does not exist.";
             
@@ -152,7 +152,7 @@ namespace RoboSharp
         /// If not list only, verify that the destination drive has write access.
         /// </remarks>
         /// <returns><see langword="true"/> if the destination is accessible, otherwise <see langword="false"/></returns>
-        private static AuthenticationResult CheckDestinationDirectory(IRoboCommand command)
+        public static AuthenticationResult CheckDestinationDirectory(IRoboCommand command)
         {
             //Check that the Destination Drive is accessible instead [fixes #106]
             try

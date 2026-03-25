@@ -1,9 +1,12 @@
-﻿using System;
+﻿using RoboSharp.Extensions.Options;
+using RoboSharp.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Helpers
@@ -71,6 +74,49 @@ namespace RoboSharp.Extensions.Helpers
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Setup the <see cref="IProcessedDirectoryPair.ProcessedFileInfo"/> and determine if it should be recursed into for the purposes of copying or moving.
+        /// <br/> note : Purging is ignored here, so 'Extra' pairs will always return false.
+        /// </summary>
+        /// <param name="pair">The directory pair to evaluate</param>
+        /// <param name="command">the associated IRoboCommand</param>
+        /// <param name="directoryExclusionRegex">provide a cached object that stores the result of : <see cref="Options.SelectionExtensions.GetExcludedDirectoryRegex(SelectionOptions)"/></param>
+        /// <param name="getFileCount">Immediately get the count of files - may be expensive!!!</param>
+        /// <returns>
+        /// true if the directory should be processed further for COPYING, otherwise false.
+        /// <br/> Note: purging/mirroing is ignored for this evaluation.
+        /// </returns>
+        public static bool EvaluateDirectoryPair(this IProcessedDirectoryPair pair, IRoboCommand command, IEnumerable<DirectoryRegex> directoryExclusionRegex, bool getFileCount = false)
+        {
+            var info = pair.ProcessedFileInfo ??= new ProcessedFileInfo();
+            
+            if (pair.IsExtra())
+            {
+                info.Name = pair.Destination.FullName;
+                info.Size = getFileCount ? pair.Destination.GetFiles().Length : 0;
+                info.SetDirectoryClass(ProcessedDirectoryFlag.ExtraDir, command.Configuration);
+                return false;
+            }
+
+            info.Name = pair.Source.FullName;
+            info.Size = getFileCount ? (pair.Source.Exists ? pair.Source.GetFiles().Length : 0) : 0;
+            
+            if (command.SelectionOptions.ShouldExcludeDirectoryName(pair, directoryExclusionRegex))
+            {
+                info.SetDirectoryClass(ProcessedDirectoryFlag.Exclusion, command.Configuration);
+                return false;
+            }
+
+            if (pair.IsLonely())
+            {
+                info.SetDirectoryClass(ProcessedDirectoryFlag.NewDir, command.Configuration);
+                return true;
+            }
+
+            info.SetDirectoryClass(ProcessedDirectoryFlag.ExistingDir, command.Configuration);
+            return true;
         }
 
         /// <summary>

@@ -59,7 +59,7 @@ namespace RoboSharp
             FileClassType = FileClassType.File;
             FileClass = command.Configuration.GetFileClass(status);
             Name = command.LoggingOptions.IncludeFullPathNames ? file.FullName : file.Name;
-            Size = file.Length;
+            Size = file.Exists ? file.Length : 0;
         }
 
         /// <summary>
@@ -188,9 +188,10 @@ namespace RoboSharp
         private string DirInfoToString(bool includeSize)
         {
             if (includeSize)
-                return $"\t{FileClass,-10}            \t{Name}";
-            else
+            {
                 return $"\t{FileClass,-10}{Size,12}\t{Name}";
+            }
+            return $"\t{FileClass,-10}            \t{Name}";
         }
 
         /// <summary>

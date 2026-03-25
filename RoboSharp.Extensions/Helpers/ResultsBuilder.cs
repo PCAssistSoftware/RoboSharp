@@ -219,7 +219,8 @@ namespace RoboSharp.Extensions.Helpers
         public virtual void AddFileSkipped(ProcessedFileInfo file)
         {
             ProgressEstimator.AddFileSkipped(file);
-            LogFileInfo(file);
+            if (Command.LoggingOptions.ReportExtraFiles)
+                LogFileInfo(file);
         }
 
         /// <summary>
