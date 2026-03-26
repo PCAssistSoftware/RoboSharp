@@ -3,6 +3,8 @@ using System;
 
 #nullable enable
 
+#if NET6_0_OR_GREATER
+
 namespace RoboSharp.Extensions
 {
     /// <summary>
@@ -11,6 +13,13 @@ namespace RoboSharp.Extensions
     /// </summary>
     public class RoboCommandPortableFactory : IRoboCommandFactory
     {
+        /// <summary>
+        /// Gets a <see cref="RoboCommandFactory"/> that uses the <see cref="StreamedCopierFactory"/>
+        /// </summary>
+        /// <param name="authenticator"></param>
+        /// <returns></returns>
+        public  static IRoboCommandFactory GetStreamedCopierFactory(IAuthenticator? authenticator = null) => new RoboCommandPortableFactory(StreamedCopierFactory.DefaultFactory, authenticator);
+
         /// <summary>
         /// Create a new <see cref="RoboCommandPortableFactory"/> to produce <see cref="RoboCommandPortable"/> objects
         /// </summary>
@@ -68,3 +77,5 @@ namespace RoboSharp.Extensions
         }
     }
 }
+
+#endif

@@ -1,22 +1,20 @@
-﻿
+﻿#if NET6_0_OR_GREATER
+
 using RoboSharp.EventArgObjects;
 using RoboSharp.Extensions.Helpers;
 using RoboSharp.Extensions.Options;
 using RoboSharp.Interfaces;
 using RoboSharp.Results;
 using System;
-using System.CodeDom;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.ComponentModel.Design;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
 
 #nullable enable
 
@@ -30,7 +28,7 @@ namespace RoboSharp.Extensions
     {
         internal static void ThrowUnsupportedFrameworkException()
         {
-#if !(NETSTANDARD2_1_OR_GREATER || NET6_0_OR_GREATER || NET8_0_OR_GREATER)
+#if !(NET6_0_OR_GREATER)
             throw new System.NotSupportedException("This process relies on IAsyncEnumerable, which is not present for this framework.");
 #endif
         }
@@ -54,8 +52,22 @@ namespace RoboSharp.Extensions
 
         private readonly IFileCopierFactory copierFactory;
         private readonly IAuthenticator authenticator;
+        private readonly SemaphoreSlim _startLock = new SemaphoreSlim(1, 1);
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        private string name = string.Empty;
+        private bool isPaused = false, isRunning = false, isScheduled = false, isCancelled = false, stopIfDisposing;
+        private CopyOptions? _CopyOptions;
+        private SelectionOptions? _SelectionOptions;
+        private RetryOptions? _RetryOptions;
+        private LoggingOptions? _LoggingOptions;
+        private JobOptions? _JobOptions;
+        private RoboSharpConfiguration? _Configuration;
+        private IProgressEstimator? progressEstimator;
+        private CancellationTokenSource? _CancellationTokenSource;
+        private RoboCopyResults? _lastResults;
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member -- Inherits descriptions from interface.
+
         public event RoboCommand.FileProcessedHandler? OnFileProcessed;
         public event RoboCommand.CommandErrorHandler? OnCommandError;
         public event RoboCommand.ErrorHandler? OnError;
@@ -77,19 +89,6 @@ namespace RoboSharp.Extensions
             System.Diagnostics.Debug.Assert(field?.Equals(value) ?? (value is null && field is null), "FactoryCommand.SetProperty failed to update field.", "Field {0} value was not updated to value [{1}]'", name, value);
         }
 
-        private string name = string.Empty;
-        private bool isPaused = false, isRunning = false, isScheduled = false, isCancelled = false, stopIfDisposing;
-        private CopyOptions _CopyOptions = new();
-        private SelectionOptions _SelectionOptions = new();
-        private RetryOptions _RetryOptions = new();
-        private LoggingOptions _LoggingOptions = new();
-        private JobOptions _JobOptions = new();
-        private RoboSharpConfiguration _Configuration = new();
-        private IProgressEstimator? progressEstimator;
-        private CancellationTokenSource? _CancellationTokenSource;
-        private SemaphoreSlim _startLock = new SemaphoreSlim(1, 1);
-        private RoboCopyResults? _lastResults;
-
         public string Name { get => name; private set => SetProperty(ref name, value, nameof(Name)); }
         public bool IsPaused { get => isPaused; private set => SetProperty(ref isPaused, value, nameof(IsPaused)); }
         public bool IsRunning { get => isRunning; private set => SetProperty(ref isRunning, value, nameof(IsRunning)); }
@@ -98,12 +97,13 @@ namespace RoboSharp.Extensions
         public bool StopIfDisposing { get => stopIfDisposing; private set => SetProperty(ref stopIfDisposing, value, nameof(StopIfDisposing)); }
         public IProgressEstimator? IProgressEstimator { get => progressEstimator; private set => SetProperty(ref progressEstimator, value, nameof(IProgressEstimator)); }
         public string CommandOptions => GenerateParameters();
-        public CopyOptions CopyOptions { get => _CopyOptions; set => SetProperty(ref _CopyOptions, value, nameof(CopyOptions)); }
-        public SelectionOptions SelectionOptions { get => _SelectionOptions; set => SetProperty(ref _SelectionOptions, value, nameof(SelectionOptions)); }
-        public RetryOptions RetryOptions { get => _RetryOptions; set => SetProperty(ref _RetryOptions, value, nameof(RetryOptions)); }
-        public LoggingOptions LoggingOptions { get => _LoggingOptions; set => SetProperty(ref _LoggingOptions, value, nameof(LoggingOptions)); }
-        public JobOptions JobOptions { get => _JobOptions; set => SetProperty(ref _JobOptions, value, nameof(JobOptions)); }
-        public RoboSharpConfiguration Configuration { get => _Configuration; set => SetProperty(ref _Configuration, value, nameof(Configuration)); }
+
+        public CopyOptions CopyOptions { get => _CopyOptions ??= new(); set => SetProperty(ref _CopyOptions, value, nameof(CopyOptions)); }
+        public SelectionOptions SelectionOptions { get => _SelectionOptions ??= new(); set => SetProperty(ref _SelectionOptions, value, nameof(SelectionOptions)); }
+        public RetryOptions RetryOptions { get => _RetryOptions ??= new(); set => SetProperty(ref _RetryOptions, value, nameof(RetryOptions)); }
+        public LoggingOptions LoggingOptions { get => _LoggingOptions ??= new(); set => SetProperty(ref _LoggingOptions, value, nameof(LoggingOptions)); }
+        public JobOptions JobOptions { get => _JobOptions ??= new(); set => SetProperty(ref _JobOptions, value, nameof(JobOptions)); }
+        public RoboSharpConfiguration Configuration { get => _Configuration ??= new(); set => SetProperty(ref _Configuration, value, nameof(Configuration)); }
 
 
         public void Pause()
@@ -209,18 +209,6 @@ namespace RoboSharp.Extensions
         {
             LoggingOptions.ListOnly = false;
         }
-
-
-
-#if !(NETSTANDARD2_1_OR_GREATER || NET6_0_OR_GREATER || NET8_0_OR_GREATER)
-
-        private Task Run(string domain, string username, string password, Action? preRunAction = null, Action? postRunAction = null)
-        {
-            ThrowUnsupportedFrameworkException();
-            return Task.CompletedTask;
-        }
-
-#else
 
         private Regex[] GetFileExclusionRegex() => excludedFiledRegex??= SelectionOptions.GetExcludedFileRegex();
         private Regex[]? excludedFiledRegex;
@@ -348,121 +336,107 @@ namespace RoboSharp.Extensions
                     resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
 
-                    if (includeEmpty)
-                        dirPair.Destination.Create();
-
-                    // ── 2a. Source files ──────────────────────────────────────────────────
-
-                    await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
+                    // ── Process Purge candidates (destination-only files) ────────────────────
+                    // ── Perform this first to clear space and also reduce run-time (avoid evaluating files that are copied into destination)
+                    if (dirPair.Destination.Exists)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        // Evaluate populates copier.ProcessedFileInfo (FileClass, Size, Name)
-                        // AND sets ShouldCopy / ShouldPurge based on this IRoboCommand's options.
-                        EvaluateFilePair(copier);
-
-                        ProcessedFileInfo fileInfo = copier.ProcessedFileInfo;
-
-                        if (copier.ShouldCopy)
+                        await foreach (IFileCopier purgeCopier in CreatePurgeCandidates(dirPair, cancellationToken))
                         {
-                            if (listOnly)
-                            {
-                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                progressReporter.AddFileCopied(fileInfo);
-                                resultsBuilder.AddFileCopied(fileInfo);
-                            }
-                            else if (touchFiles)
-                            {
-                                dirPair.Destination.Create();
-                                if (copier.Destination.Exists is false)
-                                    copier.Destination.Create();
+                            cancellationToken.ThrowIfCancellationRequested();
 
-                                progressReporter.AddFileCopied(fileInfo);
-                                resultsBuilder.AddFileCopied(fileInfo);
+                            EvaluateFilePair(purgeCopier);
+                            ProcessedFileInfo purgeInfo = purgeCopier.ProcessedFileInfo;
+
+                            if (purgeCopier.ShouldPurge)
+                            {
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
+
+                                try
+                                {
+                                    purgeCopier.Destination.Delete();
+                                    progressReporter.AddFileExtra(purgeInfo);
+                                    resultsBuilder.AddFilePurged(purgeInfo);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    throw;
+                                }
+                                catch (Exception ex)
+                                {
+                                    resultsBuilder.AddFileFailed(purgeInfo);
+                                    OnCommandError?.Invoke(this, new CommandErrorEventArgs(ex.Message, ex));
+                                }
                             }
                             else
                             {
-                                await multiThreadedController.WaitAsync(cancellationToken);
-
-                                // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
-                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                runningTasks[copier] = Task.Run(async () =>
-                                {
-                                    try
-                                    {
-                                        Directory.CreateDirectory(dirPair.Destination.FullName);
-                                        copier.ProgressUpdated += RaiseProgressUpdated;
-                                        if (CopyOptions.MoveFiles || CopyOptions.MoveFilesAndDirectories)
-                                            await copier.MoveAsync(true, cancellationToken).ConfigureAwait(false);
-                                        else
-                                            await copier.CopyAsync(true, cancellationToken).ConfigureAwait(false);
-
-                                        progressReporter.AddFileCopied(fileInfo);
-                                        resultsBuilder.AddFileCopied(fileInfo);
-                                    }
-                                    catch (OperationCanceledException)
-                                    {
-                                        throw; // let cancellation propagate cleanly
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        resultsBuilder.AddFileFailed(fileInfo);
-                                        OnError?.Invoke(this, new ErrorEventArgs(ex, copier.Destination.FullName, DateTime.Now));
-                                    }
-                                    finally
-                                    {
-                                        copier.ProgressUpdated -= RaiseProgressUpdated;
-                                        runningTasks.TryRemove(copier, out _);
-                                        multiThreadedController.Release();
-                                    }
-                                }, cancellationToken);
+                                // Extra file is present but purge is disabled — treat as skipped/extra
+                                progressReporter.AddFileExtra(purgeInfo);
+                                resultsBuilder.AddFileExtra(purgeInfo);
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
                             }
                         }
-                        else
+
+                        if ((CopyOptions.Mirror || CopyOptions.Purge) && dirPair.IsExtra())
                         {
-                            // File was evaluated but not copied (skipped/extra/same/newer/older).
-                            // Still report it so consumers see the full picture.
-                            progressReporter.AddFileSkipped(fileInfo);
-                            resultsBuilder.AddFileSkipped(fileInfo);
-                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                            dirPair.Destination.Delete(true);
+                            continue; // source does not exist -> move to next dirpair
                         }
                     }
 
-                    // ── 2b. Purge candidates (destination-only files) ────────────────────
-
-                    await foreach (IFileCopier purgeCopier in CreatePurgeCandidates(dirPair, cancellationToken))
+                    // ── 2a. Source files ──────────────────────────────────────────────────
+                    if (dirPair.Source.Exists)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
+                        if (includeEmpty)
+                            dirPair.Destination.Create();
 
-                        EvaluateFilePair(purgeCopier);
-                        ProcessedFileInfo purgeInfo = purgeCopier.ProcessedFileInfo;
-
-                        if (purgeCopier.ShouldPurge)
+                        await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
                         {
-                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
+                            cancellationToken.ThrowIfCancellationRequested();
 
-                            try
+                            // Evaluate populates copier.ProcessedFileInfo (FileClass, Size, Name)
+                            // AND sets ShouldCopy / ShouldPurge based on this IRoboCommand's options.
+                            EvaluateFilePair(copier);
+
+                            ProcessedFileInfo fileInfo = copier.ProcessedFileInfo;
+
+                            if (copier.ShouldCopy)
                             {
-                                purgeCopier.Destination.Delete();
-                                progressReporter.AddFileExtra(purgeInfo);
-                                resultsBuilder.AddFilePurged(purgeInfo);
+                                if (listOnly)
+                                {
+                                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                    progressReporter.AddFileCopied(fileInfo);
+                                    resultsBuilder.AddFileCopied(fileInfo);
+                                }
+                                else if (touchFiles)
+                                {
+                                    dirPair.Destination.Create();
+                                    if (copier.Destination.Exists is false)
+                                        copier.Destination.Create();
+
+                                    progressReporter.AddFileCopied(fileInfo);
+                                    resultsBuilder.AddFileCopied(fileInfo);
+                                }
+                                else
+                                {
+                                    await multiThreadedController.WaitAsync(cancellationToken);
+
+                                    // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
+                                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                    var task = PerformCopyOrMove(dirPair, copier, progressReporter, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
+                                    
+                                    if (task.Status < TaskStatus.RanToCompletion)
+                                        runningTasks[copier] = task;
+                                    else
+                                        await task; // acknowledge completion
+                                }
                             }
-                            catch (OperationCanceledException)
+                            else
                             {
-                                throw;
+                                // File was evaluated but not copied (skipped/extra/same/newer/older).
+                                progressReporter.AddFileSkipped(fileInfo);
+                                resultsBuilder.AddFileSkipped(fileInfo);
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
                             }
-                            catch (Exception ex)
-                            {
-                                resultsBuilder.AddFileFailed(purgeInfo);
-                                OnCommandError?.Invoke(this, new CommandErrorEventArgs(ex.Message, ex));
-                            }
-                        }
-                        else
-                        {
-                            // Extra file is present but purge is disabled — treat as skipped/extra
-                            progressReporter.AddFileExtra(purgeInfo);
-                            resultsBuilder.AddFileExtra(purgeInfo);
-                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
                         }
                     }
                 }
@@ -483,6 +457,54 @@ namespace RoboSharp.Extensions
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────────
+
+        private async Task PerformCopyOrMove(
+            DirectoryPair dirPair, 
+            IFileCopier copier, 
+            Results.ProgressEstimator progressReporter, 
+            ResultsBuilder resultsBuilder,
+            SemaphoreSlim multiThreadedController,
+            ConcurrentDictionary<IFileCopier, Task> runningTasks,
+            CancellationToken cancellationToken)
+        {
+            bool success = false;
+            int tries = 0;
+            int maxTries = RetryOptions.RetryCount <= 1 ? 1 : RetryOptions.RetryCount;
+            TimeSpan retryWaitTime = maxTries > 1 ? RetryOptions.GetRetryWaitTime() : TimeSpan.Zero;
+
+            while (success == false && tries < maxTries)
+            {
+                tries++;
+                try
+                {
+                    Directory.CreateDirectory(dirPair.Destination.FullName);
+                    copier.ProgressUpdated += RaiseProgressUpdated;
+                    if (CopyOptions.MoveFiles || CopyOptions.MoveFilesAndDirectories)
+                        await copier.MoveAsync(true, cancellationToken).ConfigureAwait(false);
+                    else
+                        await copier.CopyAsync(true, cancellationToken).ConfigureAwait(false);
+                    success = true;
+                    progressReporter.AddFileCopied(copier.ProcessedFileInfo);
+                    resultsBuilder.AddFileCopied(copier.ProcessedFileInfo);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // let cancellation propagate cleanly
+                }
+                catch (Exception ex) when (success == false) // don't catch errors from the progress reporter or results builder.
+                {
+                    resultsBuilder.AddFileFailed(copier.ProcessedFileInfo);
+                    OnError?.Invoke(this, new ErrorEventArgs(ex, copier.Destination.FullName, DateTime.Now));
+                    await Task.Delay(retryWaitTime, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    copier.ProgressUpdated -= RaiseProgressUpdated;
+                    runningTasks.TryRemove(copier, out _);
+                    multiThreadedController.Release();
+                }
+            }
+        }
 
         /// <summary>
         /// Yields the root pair and (if recurse is true) all sub-directory pairs,
@@ -574,6 +596,6 @@ namespace RoboSharp.Extensions
                 yield return copierFactory.Create(sourceFile, destFile, dirPair);
             }
         }
-#endif
     }
 }
+#endif

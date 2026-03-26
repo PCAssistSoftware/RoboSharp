@@ -95,7 +95,7 @@ namespace RoboSharp
 
             if (RetryCount >= 0 && RetryCount != 1000000)
                 options.AppendFormat(RETRY_COUNT, RetryCount);
-            
+
             if (RetryWaitTime >= 0 && RetryWaitTime != 30)
                 options.AppendFormat(RETRY_WAIT_TIME, RetryWaitTime);
 
@@ -128,6 +128,17 @@ namespace RoboSharp
             RetryWaitTime = RetryWaitTime.GetGreaterVal(options.RetryWaitTime);
             WaitForSharenames |= options.WaitForSharenames;
             SaveToRegistry |= options.SaveToRegistry;
+        }
+
+        /// <summary>
+        /// Gets a <see cref="TimeSpan"/> representing the <see cref="RetryWaitTime"/>
+        /// </summary>
+        /// <returns></returns>
+        public TimeSpan GetRetryWaitTime()
+        {
+            if (RetryWaitTime <= 0)
+                return TimeSpan.Zero;
+            return TimeSpan.FromSeconds(RetryWaitTime);
         }
     }
 }
