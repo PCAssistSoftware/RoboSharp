@@ -1,0 +1,76 @@
+#
+# Build the solution, run the 2 unit tests, then create artifacts.
+#
+# For more information on GitHub Actions, refer to https://github.com/features/actions
+# For a complete CI/CD sample to get started with GitHub Action workflows for Desktop Applications,
+# refer to https://github.com/microsoft/github-actions-for-desktop-apps
+
+name: Build and Test
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+jobs:
+
+  build:
+
+    strategy:
+      matrix:
+        configuration: [Release]
+
+    runs-on: windows-latest  # For a list of available runner types, refer to
+                             # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idruns-on
+
+    env:
+      Solution_Name: RoboSharp.sln                        # Replace with your solution name, i.e. MyWpfApp.sln.
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    # Install the .NET SDK - https://github.com/actions/setup-dotnet
+    - name: Install .NET SDK
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+            8.0.x
+            10.0.x
+            
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@v3
+   
+    - name: Restore
+      run: dotnet restore $env:Solution_Name
+
+    - name: Build
+      run: dotnet build $env:Solution_Name --configuration ${{ matrix.configuration }} --no-restore
+
+    - name: Run RoboSharp Tests
+      run: dotnet test ./RoboSharpUnitTesting/RoboSharpUnitTesting.csproj --configuration Release --no-build
+
+    - name: Run RoboSharp.Extensions Tests
+      run: dotnet test ./RoboSharp.Extensions.UnitTests/RoboSharp.Extensions.UnitTests.csproj --configuration Release --no-build
+
+      # Execute all unit tests in the solution
+    - name: Execute unit tests
+      run: dotnet test
+
+    - name: Gather Artifacts
+      run: |
+        dotnet pack ./RoboSharp/RoboSharp.csproj --configuration Release --no-build --output ./artifacts
+        dotnet pack ./RoboSharp.Extensions/RoboSharp.Extensions.csproj --configuration Release --no-build --output ./artifacts
+        dotnet publish ./Robosharp.ConsoleApp/Robosharp.ConsoleApp.csproj --configuration Release --no-build --output ./artifacts/ConsoleApp
+        dotnet publish ./RoboSharp.BackupApp/RoboSharp.BackupApp.csproj --configuration Release --no-build --output ./artifacts/BackupApp
+        
+        
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: nuget-packages
+        path: ./artifacts/*
