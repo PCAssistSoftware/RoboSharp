@@ -15,15 +15,15 @@ using System.Threading.Tasks;
 namespace RoboSharp.Extensions.Tests
 {
     /// <summary>
-    /// Test the <see cref="FactoryCommand"/> object
+    /// Test the <see cref="RoboCommandPortable"/> object
     /// </summary>
     [TestClass]
-    public class FactoryCommand_EventTests : RoboSharp.UnitTests.RoboCommandEventTests
+    public class RoboCommandPortable_EventTests : RoboSharp.UnitTests.RoboCommandEventTests
     {
         protected override IRoboCommand GenerateCommand(bool UseLargerFileSet, bool ListOnlyMode)
         {
             var rc = RoboSharp.UnitTests.Test_Setup.GenerateCommand(false, true);
-            var command = new FactoryCommand(RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
+            var command = new RoboCommandPortable(RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
             {
                 CopyOptions = rc.CopyOptions,
                 SelectionOptions = rc.SelectionOptions,
@@ -39,13 +39,13 @@ namespace RoboSharp.Extensions.Tests
     /// Validate that the command works the same as robocopy
     /// </summary>
     [TestClass]
-    public class FactoryCommand_Tests
+    public class RoboCommandPortable_Tests
     {
         const LoggingFlags DefaultLoggingAction = LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader;
 
-        private static FactoryCommand GetCommand(RoboCommand rc, IFileCopierFactory factory = null)
+        private static RoboCommandPortable GetCommand(RoboCommand rc, IFileCopierFactory factory = null)
         {
-            return new FactoryCommand(factory ?? RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
+            return new RoboCommandPortable(factory ?? RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
             {
                 CopyOptions = rc.CopyOptions,
                 SelectionOptions = rc.SelectionOptions,
@@ -98,7 +98,7 @@ namespace RoboSharp.Extensions.Tests
             TestPrep.CompareTestResults(results2[0], results2[1], rc.LoggingOptions.ListOnly);
         }
 
-        private static void GetMoveCommands(CopyActionFlags copyFlags, SelectionFlags selectionFlags, LoggingFlags loggingFlags, out RoboCommand rc, out FactoryCommand rm)
+        private static void GetMoveCommands(CopyActionFlags copyFlags, SelectionFlags selectionFlags, LoggingFlags loggingFlags, out RoboCommand rc, out RoboCommandPortable rm)
         {
             rc = TestPrep.GetRoboCommand(false, copyFlags, selectionFlags, loggingFlags);
             rc.CopyOptions.Source = GetMoveSource();
@@ -326,7 +326,7 @@ namespace RoboSharp.Extensions.Tests
             await RunPurge(cmd, mover);
         }
 
-        private async Task RunPurge(RoboCommand cmd, FactoryCommand mover)
+        private async Task RunPurge(RoboCommand cmd, RoboCommandPortable mover)
         {
             //if (Test_Setup.IsRunningOnAppVeyor()) return;
             var results = await TestPrep.RunTests(cmd, mover, !cmd.LoggingOptions.ListOnly, CreateFilesToPurge);

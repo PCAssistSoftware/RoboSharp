@@ -26,7 +26,7 @@ namespace RoboSharp.Extensions
     /// This <see cref="Interfaces.IRoboCommand"/> relies on an <see cref="IFileCopierFactory"/> to generate the objects used to manage the copy operations.
     /// <br/>This class should allow use of this library in non-windows environments.
     /// </summary>
-    public class FactoryCommand : IRoboCommand, INotifyPropertyChanged
+    public class RoboCommandPortable : IRoboCommand, INotifyPropertyChanged
     {
         internal static void ThrowUnsupportedFrameworkException()
         {
@@ -36,7 +36,7 @@ namespace RoboSharp.Extensions
         }
 
         /// <summary>
-        /// Create a new <see cref="FactoryCommand"/>
+        /// Create a new <see cref="RoboCommandPortable"/>
         /// </summary>
         /// <param name="fileCopierFactory"></param>
         /// <param name="authenticator">
@@ -45,7 +45,7 @@ namespace RoboSharp.Extensions
         /// </param>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="NotSupportedException">Not Available in .Net Framework or .NetStandard2.0</exception>
-        public FactoryCommand(IFileCopierFactory fileCopierFactory, IAuthenticator? authenticator = null)
+        public RoboCommandPortable(IFileCopierFactory fileCopierFactory, IAuthenticator? authenticator = null)
         {
             ThrowUnsupportedFrameworkException();
             copierFactory = fileCopierFactory ?? throw new ArgumentNullException(nameof(fileCopierFactory));
@@ -242,7 +242,7 @@ namespace RoboSharp.Extensions
             if (IsRunning)
             {
                 _startLock.Release();
-                throw new InvalidOperationException($"{nameof(FactoryCommand)} is already running.");
+                throw new InvalidOperationException($"{nameof(RoboCommandPortable)} is already running.");
             }
             IsRunning = true;
             IsPaused = false;
