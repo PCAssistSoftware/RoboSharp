@@ -59,10 +59,12 @@ namespace RoboSharp.UnitTests
             return cmd;
         }
 
-        public static async Task<RoboSharpTestResults> RunTest(IRoboCommand cmd)
+        public static async Task<RoboSharpTestResults> RunTest(IRoboCommand cmd, CancellationToken token)
         {
             IProgressEstimator prog = null;
             cmd.OnProgressEstimatorCreated += (o, e) => prog = e.ResultsEstimate;
+            token.ThrowIfCancellationRequested();
+            token.Register(() => cmd.Stop());
             var results = await cmd.StartAsync();
             return new RoboSharpTestResults(results, prog);
         }
@@ -125,7 +127,6 @@ namespace RoboSharp.UnitTests
             stat.Reset();
             stat.Add(total, copied, extras, failed, mismatch, skipped);
         }
-
     }
 }
 

@@ -90,7 +90,7 @@ namespace RoboSharp.Extensions.Tests
             {
                 if (attr.PlatformName.StartsWith("windows"))
                 {
-                    await Assert.ThrowsExceptionAsync<PlatformNotSupportedException>(copier.CopyAsync, "\r\n failed to throw PlatformNotSupported");
+                    await Assert.ThrowsAsync<PlatformNotSupportedException>(copier.CopyAsync, "\r\n failed to throw PlatformNotSupported");
                     return false;
                 }
             }
@@ -115,7 +115,7 @@ namespace RoboSharp.Extensions.Tests
         /// <summary>
         /// Tests the basic functionality of an <see cref="IFileCopierFactory"/>
         /// </summary>
-        [DynamicData(nameof(GetCopierFactory), dynamicDataSourceType:DynamicDataSourceType.Method, DynamicDataDisplayName = nameof(GetCopierName))]
+        [DynamicData(nameof(GetCopierFactory), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
         public void RunFactoryTests(IFileCopierFactory factory)
         {
@@ -147,7 +147,7 @@ namespace RoboSharp.Extensions.Tests
         /// <summary>
         /// Tests the basic functionality of an <see cref="IFileCopier.CopyAsync()"/>
         /// </summary>
-        [DynamicData(nameof(GetCopier), dynamicDataSourceType: DynamicDataSourceType.Method, DynamicDataDisplayName = nameof(GetCopierName))]
+        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
         public async Task CopyAsyncTest(IFileCopier copier)
         {
@@ -163,7 +163,7 @@ namespace RoboSharp.Extensions.Tests
                 if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
 
                 //Source is missing
-                await Assert.ThrowsExceptionAsync<FileNotFoundException>(copier.CopyAsync, "\n --Did not throw when source is missing \n");
+                await Assert.ThrowsAsync<FileNotFoundException>(copier.CopyAsync, "\n --Did not throw when source is missing \n");
 
                 PrepSourceAndDest(copier);
 
@@ -173,22 +173,22 @@ namespace RoboSharp.Extensions.Tests
                 Assert.IsTrue(await copier.CopyAsync(true, CancellationToken.None), "\n -- IFileCopierTests - Copy - Test 3\n");
 
                 //File already exists
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.CopyAsync(), "\n -- IFileCopierTests - Prevent Overwrite - Test 1\n");
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.CopyAsync(false), "\n -- IFileCopierTests - Prevent Overwrite - Test 2\n");
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.CopyAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Prevent Overwrite - Test 3\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(), "\n -- IFileCopierTests - Prevent Overwrite - Test 1\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false), "\n -- IFileCopierTests - Prevent Overwrite - Test 2\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Prevent Overwrite - Test 3\n");
                 await Cleanup(copier, false);
 
                 // Cancellation Test 1 -- BEFORE start of the operation
                 CancellationTokenSource cToken = new CancellationTokenSource();
                 cToken.Cancel();
-                await AssertExtensions.AssertThrowsExceptionAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Token Test (1)\n");
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Token Test (1)\n");
                 Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (1)");
                 Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (1)");
 
 
                 // Cancellation Test 2 -- Mid-Write + tests ProgressUpdated
                 copier.ProgressUpdated += CancelEventHandler;
-                await AssertExtensions.AssertThrowsExceptionAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, CancellationToken.None), "\n -- Copier.Cancel() Test (2)\n");
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, CancellationToken.None), "\n -- Copier.Cancel() Test (2)\n");
                 Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (2)");
                 Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (2)");
                 copier.ProgressUpdated -= CancelEventHandler;
@@ -197,7 +197,7 @@ namespace RoboSharp.Extensions.Tests
                 cToken = new CancellationTokenSource();
                 void tokenHandler(object o, EventArgs e) => cToken.Cancel();
                 copier.ProgressUpdated += tokenHandler;
-                await AssertExtensions.AssertThrowsExceptionAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Test 3\n");
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Test 3\n");
                 Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (3)");
                 Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (3)");
                 copier.ProgressUpdated -= tokenHandler;
@@ -254,7 +254,7 @@ namespace RoboSharp.Extensions.Tests
         /// <summary>
         /// Tests the basic functionality of an <see cref="IFileCopier.MoveAsync()"/>
         /// </summary>
-        [DynamicData(nameof(GetCopier), dynamicDataSourceType: DynamicDataSourceType.Method, DynamicDataDisplayName = nameof(GetCopierName))]
+        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
         public async Task MoveAsyncTest(IFileCopier copier)
         {
@@ -266,7 +266,7 @@ namespace RoboSharp.Extensions.Tests
                 if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
 
                 //Source is missing
-                await Assert.ThrowsExceptionAsync<FileNotFoundException>(() => copier.MoveAsync(), "\n --Did not throw when source is missing \n");
+                await Assert.ThrowsAsync<FileNotFoundException>(() => copier.MoveAsync(), "\n --Did not throw when source is missing \n");
 
                 const string fileNotMoved = "\n -- IFileCopierTests - Move - Source Not Moved - Test {0}\n";
                 const string fileMoved = "\n -- IFileCopierTests - Move - Source Not Moved - Test {0}\n";
@@ -286,13 +286,13 @@ namespace RoboSharp.Extensions.Tests
 
                 //File already exists
                 PrepSourceAndDest(copier, false);
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.MoveAsync(), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 1\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 1\n");
                 Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 1));
 
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.MoveAsync(false), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 2\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 2\n");
                 Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 2));
 
-                await Assert.ThrowsExceptionAsync<IOException>(() => copier.MoveAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 3\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 3\n");
                 Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 3));
                 await Cleanup(copier, false);
             }
@@ -313,7 +313,7 @@ namespace RoboSharp.Extensions.Tests
         /// <summary>
         /// Tests that attributes and file itself are copied to the destination file properly, just like if they were copied via File.CopyTo();
         /// </summary>
-        [DynamicData(nameof(GetCopier), dynamicDataSourceType: DynamicDataSourceType.Method, DynamicDataDisplayName = nameof(GetCopierName))]
+        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
         public async Task AttributesCopiedProperlyTest(IFileCopier copier)
         {

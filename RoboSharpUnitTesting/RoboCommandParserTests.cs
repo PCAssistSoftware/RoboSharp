@@ -430,7 +430,7 @@ namespace RoboSharp.UnitTests
         public void Test_ParseSourceAndDestinationException(string source, string destination, bool shouldThrow = true, bool wrap = true)
         {
             if (shouldThrow)
-                Assert.ThrowsException<RoboCommandParserException>(runTest);
+                Assert.Throws<RoboCommandParserException>(runTest);
             else
                 runTest();
 

@@ -135,9 +135,11 @@ namespace RoboSharp.Extensions.Helpers.UnitTests
 
             var testFile = new ProcessedFileInfo() { FileClass = cmd.Configuration.LogParsing_NewFile, FileClassType = FileClassType.File, Name = "TestFileName", Size = 100 };
             cmd.LoggingOptions.NoFileList = true;
+            cmd.LoggingOptions.ReportExtraFiles = false;
             builder.AddFileSkipped(testFile);
             Assert.AreEqual(0, builder.CurrentLogLines.LongLength);
             cmd.LoggingOptions.NoFileList = false;
+            cmd.LoggingOptions.ReportExtraFiles = true;
             builder.AddFileSkipped(testFile);
             Assert.AreEqual(1, builder.CurrentLogLines.LongLength);
             Assert.AreEqual(2, builder.GetResults().FilesStatistic.Skipped);

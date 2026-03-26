@@ -71,7 +71,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public void Test_ConvertFileAttrToString_InvalidString()
         {
-            Assert.ThrowsException<ArgumentException>(() => SelectionOptions.ConvertFileAttrStringToEnum("Q"));
+            Assert.Throws<ArgumentException>(() => SelectionOptions.ConvertFileAttrStringToEnum("Q"));
         }
 
         [DataRow("", null)]

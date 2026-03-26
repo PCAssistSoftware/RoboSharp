@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Tests
@@ -24,7 +25,13 @@ namespace RoboSharp.Extensions.Tests
     [TestClass]
     public class RoboMoverTests
     {
+        /// <summary>
+        /// Set by testing framework
+        /// </summary>
+        public TestContext TestContext { get; set; }
+
         const LoggingFlags DefaultLoggingAction = LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader;
+        const LoggingFlags ListOnlyLoggingAction = LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader | LoggingFlags.ListOnly;
 
         static string GetMoveSource()
         {
@@ -44,10 +51,15 @@ namespace RoboSharp.Extensions.Tests
         /// Copy Test will use a standard ROBOCOPY command
         /// </summary>
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation =true)]
         [DataRow(data: new object[] { DefaultLoggingAction, SelectionFlags.Default, CopyActionFlags.Mirror }, DisplayName = "Mirror")]
         [DataRow(data: new object[] { DefaultLoggingAction, SelectionFlags.Default, CopyActionFlags.Default }, DisplayName = "Defaults")]
         [DataRow(data: new object[] { DefaultLoggingAction, SelectionFlags.Default, CopyActionFlags.CopySubdirectories }, DisplayName = "Subdirectories")]
         [DataRow(data: new object[] { DefaultLoggingAction, SelectionFlags.Default, CopyActionFlags.CopySubdirectoriesIncludingEmpty }, DisplayName = "EmptySubdirectories")]
+        [DataRow(data: new object[] { ListOnlyLoggingAction, SelectionFlags.Default, CopyActionFlags.Mirror }, DisplayName = "ListOnly-Mirror")]
+        [DataRow(data: new object[] { ListOnlyLoggingAction, SelectionFlags.Default, CopyActionFlags.Default }, DisplayName = "ListOnly-Defaults")]
+        [DataRow(data: new object[] { ListOnlyLoggingAction, SelectionFlags.Default, CopyActionFlags.CopySubdirectories }, DisplayName = "ListOnly-Subdirectories")]
+        [DataRow(data: new object[] { ListOnlyLoggingAction, SelectionFlags.Default, CopyActionFlags.CopySubdirectoriesIncludingEmpty }, DisplayName = "ListOnly-EmptySubdirectories")]
         public async Task CopyTest(object[] flags)
         {
             Test_Setup.ClearOutTestDestination();
@@ -58,13 +70,18 @@ namespace RoboSharp.Extensions.Tests
             var rc = TestPrep.GetRoboCommand(false, copyAction, selectionFlags, loggingAction);
             var crc = TestPrep.GetIRoboCommand<RoboMover>(rc);
 
-            rc.LoggingOptions.ListOnly = true;
-            var results1 = await TestPrep.RunTests(rc, crc, false);
-            TestPrep.CompareTestResults(results1[0], results1[1], rc.LoggingOptions.ListOnly);
 
-            rc.LoggingOptions.ListOnly = false;
-            var results2 = await TestPrep.RunTests(rc, crc, true);
-            TestPrep.CompareTestResults(results2[0], results2[1], rc.LoggingOptions.ListOnly);
+            Assert.AreEqual(loggingAction.HasFlag(LoggingFlags.ListOnly), rc.LoggingOptions.ListOnly);
+            Assert.AreEqual(loggingAction.HasFlag(LoggingFlags.ListOnly), crc.LoggingOptions.ListOnly);
+
+            TestContext.CancellationToken.Register(() =>
+            {
+                rc.Stop();
+                crc.Stop();
+            });
+
+            var results1 = await TestPrep.RunTests(rc, crc, CleanBetweenRuns: !rc.LoggingOptions.ListOnly, TestContext.CancellationToken);
+            TestPrep.CompareTestResults(results1[0], results1[1], rc.LoggingOptions.ListOnly);
         }
 
         private static void GetMoveCommands(CopyActionFlags copyFlags, SelectionFlags selectionFlags, LoggingFlags loggingFlags, out RoboCommand rc, out RoboMover rm)
@@ -74,21 +91,6 @@ namespace RoboSharp.Extensions.Tests
             rm = TestPrep.GetIRoboCommand<RoboMover>(rc);
         }
 
-        private static async Task PrepMoveFiles()
-        {
-            var rc = TestPrep.GetRoboCommand(false, CopyActionFlags.CopySubdirectoriesIncludingEmpty, SelectionFlags.Default, DefaultLoggingAction);
-            rc.CopyOptions.Destination = GetMoveSource();
-            Directory.CreateDirectory(rc.CopyOptions.Destination);
-            await rc.Start();
-            var results = rc.GetResults();
-            if (results.RoboCopyErrors.Length > 0)
-                throw new Exception(
-                    "Prep Failed  \n" +
-                    string.Concat(args: results.RoboCopyErrors.Select(e => "\n RoboCommandError :\t" + e.GetType() + "\t" + e.ErrorDescription + "\t:\t" + e.ErrorPath).ToArray()) +
-                    "\n"
-                    );
-        }
-
         private const CopyActionFlags Mov_ = CopyActionFlags.MoveFiles;
         private const CopyActionFlags Move = CopyActionFlags.MoveFilesAndDirectories;
 
@@ -96,6 +98,7 @@ namespace RoboSharp.Extensions.Tests
         /// This uses the actual logic provided by the RoboMover object
         /// </summary>
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
@@ -109,11 +112,12 @@ namespace RoboSharp.Extensions.Tests
             if (Test_Setup.IsRunningOnAppVeyor()) return;
             GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2], out var rc, out var rm);
             bool listOnly = rc.LoggingOptions.ListOnly;
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, PrepMoveFiles);
+            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, TestPrep.PrepMoveFiles, TestContext.CancellationToken);
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
         }
 
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
@@ -124,11 +128,12 @@ namespace RoboSharp.Extensions.Tests
             GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2], out var rc, out var rm);
             bool listOnly = rc.LoggingOptions.ListOnly;
             rc.CopyOptions.FileFilter = new string[] { "*.txt" };
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, PrepMoveFiles);
+            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, TestPrep.PrepMoveFiles, TestContext.CancellationToken);
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
         }
 
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
@@ -140,12 +145,13 @@ namespace RoboSharp.Extensions.Tests
             rc.SelectionOptions.ExcludedFiles.Add("*.txt");
             rc.Configuration.EnableFileLogging = true;
             bool listOnly = rc.LoggingOptions.ListOnly;
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, PrepMoveFiles);
+            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, TestPrep.PrepMoveFiles, TestContext.CancellationToken);
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
         }
 
 
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Move | CopyActionFlags.CopySubdirectories, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Include Subdirectories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
@@ -156,12 +162,13 @@ namespace RoboSharp.Extensions.Tests
             if (Test_Setup.IsRunningOnAppVeyor()) return;
             GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2] | LoggingFlags.ReportExtraFiles, out var rc, out var rm);
             bool listOnly = rc.LoggingOptions.ListOnly;
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, CreateFile);
+            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, CreateFile, TestContext.CancellationToken);
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
 
-            static async Task CreateFile()
+            static async Task CreateFile(CancellationToken token)
             {
-                await PrepMoveFiles();
+                await TestPrep.PrepMoveFiles(token);
+                token.ThrowIfCancellationRequested();
                 string path = Path.Combine(TestPrep.DestDirPath, "ExtraFileTest.txt");
                 if (!File.Exists(path))
                 {
@@ -172,6 +179,7 @@ namespace RoboSharp.Extensions.Tests
         }
 
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
@@ -181,12 +189,13 @@ namespace RoboSharp.Extensions.Tests
             if (Test_Setup.IsRunningOnAppVeyor()) return;
             GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2], out var rc, out var rm);
             bool listOnly = rc.LoggingOptions.ListOnly;
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, CreateFile);
+            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, CreateFile, TestContext.CancellationToken);
             TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
 
-            static async Task CreateFile()
+            static async Task CreateFile(CancellationToken token)
             {
-                await PrepMoveFiles();
+                await TestPrep.PrepMoveFiles(token);
+                token.ThrowIfCancellationRequested();
                 Directory.CreateDirectory(TestPrep.DestDirPath);
                 string fn = "1024_Bytes.txt";
                 string dest = Path.Combine(TestPrep.DestDirPath, fn);
@@ -223,37 +232,40 @@ namespace RoboSharp.Extensions.Tests
         [DataRow(2, true, Mov_ | CopyActionFlags.CopySubdirectories, LoggingFlags.ReportExtraFiles)]
         [DataRow(2, true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty, LoggingFlags.ReportExtraFiles)]
         [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         public async Task Purge_Depth(int depth, bool listOnly, CopyActionFlags flags, LoggingFlags? loggs = null)
         {
             LoggingFlags log = loggs.HasValue ? loggs.Value | DefaultLoggingAction : DefaultLoggingAction;
             GetMoveCommands(flags, SelectionFlags.Default, log, out var cmd, out var mover);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.CopyOptions.Depth = depth;
-            await RunPurge(cmd, mover);
+            await RunPurge(cmd, mover, TestContext.CancellationToken);
         }
 
+        [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(true, Mov_)]
         [DataRow(false, Move)]
         [DataRow(true, Mov_ | CopyActionFlags.CopySubdirectories)]
         [DataRow(true, Move | CopyActionFlags.CopySubdirectories)]
         [DataRow(false, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
         [DataRow(false, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [TestMethod]
         public async Task Purge_ExcludeFiles(bool listOnly, CopyActionFlags flags)
         {
             GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var mover);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.SelectionOptions.ExcludedFiles.Add("*0*_Bytes.txt");
-            await RunPurge(cmd, mover);
+            await RunPurge(cmd, mover, TestContext.CancellationToken);
         }
 
+        [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(true, Mov_)]
         [DataRow(true, Move)]
         [DataRow(true, Mov_ | CopyActionFlags.CopySubdirectories)]
         [DataRow(true, Move | CopyActionFlags.CopySubdirectories)]
         [DataRow(true, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
         [DataRow(true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [TestMethod]
         public async Task Purge_ExcludeFolders(bool listOnly, CopyActionFlags flags)
         {
             GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var mover);
@@ -261,9 +273,11 @@ namespace RoboSharp.Extensions.Tests
             cmd.SelectionOptions.ExcludedDirectories.Add("EmptyFolder1"); // Top level empty
             cmd.SelectionOptions.ExcludedDirectories.Add("EmptyFolder4"); // Bottom level empty
             cmd.SelectionOptions.ExcludedDirectories.Add("SubFolder_2a"); // folder with contents
-            await RunPurge(cmd, mover);
+            await RunPurge(cmd, mover, TestContext.CancellationToken);
         }
 
+        [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(true, Mov_)]
         [DataRow(true, Move)]
         [DataRow(true, Mov_ | CopyActionFlags.CopySubdirectories)]
@@ -276,28 +290,28 @@ namespace RoboSharp.Extensions.Tests
         [DataRow(true, Move | CopyActionFlags.CopySubdirectories, LoggingFlags.ReportExtraFiles)]
         [DataRow(true, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty, LoggingFlags.ReportExtraFiles)]
         [DataRow(true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty, LoggingFlags.ReportExtraFiles)]
-        [TestMethod]
         public async Task Purge_IncludedFiles(bool listOnly, CopyActionFlags flags, LoggingFlags? loggs = null)
         {
             LoggingFlags log = loggs.HasValue ? loggs.Value | DefaultLoggingAction : DefaultLoggingAction;
             GetMoveCommands(flags, SelectionFlags.Default, log, out var cmd, out var mover);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.CopyOptions.FileFilter = new string[] { "*0*_Bytes.txt" };
-            await RunPurge(cmd, mover);
+            await RunPurge(cmd, mover, TestContext.CancellationToken);
         }
 
-        private async Task RunPurge(RoboCommand cmd, RoboMover mover)
+        private async Task RunPurge(RoboCommand cmd, RoboMover mover, CancellationToken token)
         {
             //if (Test_Setup.IsRunningOnAppVeyor()) return;
-            var results = await TestPrep.RunTests(cmd, mover, !cmd.LoggingOptions.ListOnly, CreateFilesToPurge);
+            var results = await TestPrep.RunTests(cmd, mover, !cmd.LoggingOptions.ListOnly, TestPrep.CreateFilesToPurge, token);
             TestPrep.CompareTestResults(results[0], results[1], cmd.LoggingOptions.ListOnly);
         }
 
+        [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
         [DataRow(CopyActionFlags.MoveFiles)]
         [DataRow(CopyActionFlags.MoveFiles | CopyActionFlags.Purge)]
         [DataRow(CopyActionFlags.MoveFilesAndDirectories)]
         [DataRow(CopyActionFlags.MoveFilesAndDirectories | CopyActionFlags.Purge)]
-        [DataTestMethod]
         public async Task ValidateRoboMover(CopyActionFlags copyOptions)
         {
             GetMoveCommands(
@@ -306,7 +320,7 @@ namespace RoboSharp.Extensions.Tests
                 DefaultLoggingAction,
                 out _, out var rm);
             Test_Setup.ClearOutTestDestination();
-            await PrepMoveFiles();
+            await TestPrep.PrepMoveFiles(TestContext.CancellationToken);
             
             string subfolderpath = @"SubFolder_1\SubFolder_1.1\SubFolder_1.2";
             FilePair[] SourceFiles = new FilePair[] {
@@ -358,22 +372,6 @@ namespace RoboSharp.Extensions.Tests
             Assert.AreEqual(moveDirectories, SourceFiles[2].Parent.IsExtra(), moveDirectories ? "Directory was not moved" : "Directory was moved unexpectedly.");
             Assert.AreEqual(moveDirectories, SourceFiles[3].Parent.IsExtra(), moveDirectories ? "Directory was not moved" : "Directory was moved unexpectedly.");
 
-        }
-
-        [DataTestMethod]
-        public async Task CreateFilesToPurge()
-        {
-            await PrepMoveFiles();
-            RoboCommand prep = new RoboCommand();
-            prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_1");
-            prep.CopyOptions.Destination = Path.Combine(Test_Setup.TestDestination, "SubFolder_3");
-            prep.CopyOptions.ApplyActionFlags(CopyActionFlags.CopySubdirectoriesIncludingEmpty);
-            Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder1", "EmptyFolder2"));
-            await prep.Start();
-            prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_2");
-            prep.CopyOptions.Destination = Path.Combine(prep.CopyOptions.Destination, "SubFolder_2a");
-            await prep.Start();
-            Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder3", "EmptyFolder4"));
         }
     }
 }

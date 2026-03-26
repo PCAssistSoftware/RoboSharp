@@ -1,16 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoboSharp;
 using RoboSharp.Interfaces;
 using RoboSharp.UnitTests;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using TestSetup = RoboSharp.UnitTests.Test_Setup;
 
 namespace RoboSharp.Extensions.Tests
 {
+    /// <summary>
+    /// Extensions Test Helpers
+    /// </summary>
     public static class TestPrep
     {
         public static string SourceDirPath => RoboSharp.UnitTests.Test_Setup.Source_Standard;
@@ -55,23 +60,24 @@ namespace RoboSharp.Extensions.Tests
         }
 
 
-        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns)
-            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: null);
+        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, CancellationToken token)
+            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: null, token);
 
-        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Action actionBetweenRuns)
-            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: actionBetweenRuns is null ? null : () => Task.Run(actionBetweenRuns));
+        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Action actionBetweenRuns, CancellationToken token)
+            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: actionBetweenRuns is null ? null : (c) => Task.Run(actionBetweenRuns, token), token);
 
-        public static async Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Func<Task> taskBetweenRuns)
+        public static async Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Func<CancellationToken, Task> taskBetweenRuns, CancellationToken token)
         {
             var results = new List<RoboSharpTestResults>();
-            await BetweenRuns();
-            results.Add(await TestSetup.RunTest(roboCommand));
-            if (!roboCommand.LoggingOptions.ListOnly) await BetweenRuns();
-            
+            await BetweenRuns(token);
+            results.Add(await TestSetup.RunTest(roboCommand, token));
+            if (!roboCommand.LoggingOptions.ListOnly) await BetweenRuns(token);
+
+            token.ThrowIfCancellationRequested();
             customCommand.OnError += CachedRoboCommand_OnError;
             customCommand.OnCommandError += CachedRoboCommand_OnCommandError;
-            
-            results.Add(await TestSetup.RunTest(customCommand));
+
+            results.Add(await TestSetup.RunTest(customCommand, token));
             
             customCommand.OnError -= CachedRoboCommand_OnError;
             customCommand.OnCommandError -= CachedRoboCommand_OnCommandError;
@@ -79,11 +85,12 @@ namespace RoboSharp.Extensions.Tests
             if (CleanBetweenRuns) TestSetup.ClearOutTestDestination();
             return results.ToArray();
 
-            async Task BetweenRuns()
+            async ValueTask BetweenRuns(CancellationToken token)
             {
+                token.ThrowIfCancellationRequested();
                 if (CleanBetweenRuns) TestSetup.ClearOutTestDestination();
                 if (taskBetweenRuns is not null)
-                    await taskBetweenRuns();
+                    await taskBetweenRuns(token);
             }
         }
         private static void CachedRoboCommand_OnCommandError(IRoboCommand sender, CommandErrorEventArgs e) => Console.WriteLine(e.Exception);
@@ -215,6 +222,45 @@ namespace RoboSharp.Extensions.Tests
                 Directory.CreateDirectory(AppDataFolder);
             }
         }
-       
+
+
+        public static string GetMoveSource()
+        {
+            string original = TestPrep.SourceDirPath;
+            return Path.Combine(original.Replace(Path.GetFileName(original), ""), "MoveSource");
+        }
+
+        public static async Task PrepMoveFiles(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var rc = TestPrep.GetRoboCommand(false, CopyActionFlags.CopySubdirectoriesIncludingEmpty, SelectionFlags.Default, LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader);
+            rc.CopyOptions.Destination = GetMoveSource();
+            Directory.CreateDirectory(rc.CopyOptions.Destination);
+            token.Register(() => rc.Stop());
+            await rc.Start();
+            var results = rc.GetResults();
+            if (results.RoboCopyErrors.Length > 0)
+                throw new Exception(
+                    "Prep Failed  \n" +
+                    string.Concat(args: results.RoboCopyErrors.Select(e => "\n RoboCommandError :\t" + e.GetType() + "\t" + e.ErrorDescription + "\t:\t" + e.ErrorPath).ToArray()) +
+                    "\n"
+                    );
+        }
+
+        public static async Task CreateFilesToPurge(CancellationToken token)
+        {
+            await PrepMoveFiles(token);
+            token.ThrowIfCancellationRequested();
+            RoboCommand prep = new RoboCommand();
+            prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_1");
+            prep.CopyOptions.Destination = Path.Combine(Test_Setup.TestDestination, "SubFolder_3");
+            prep.CopyOptions.ApplyActionFlags(CopyActionFlags.CopySubdirectoriesIncludingEmpty);
+            Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder1", "EmptyFolder2"));
+            await prep.Start();
+            prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_2");
+            prep.CopyOptions.Destination = Path.Combine(prep.CopyOptions.Destination, "SubFolder_2a");
+            await prep.Start();
+            Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder3", "EmptyFolder4"));
+        }
     }
 }

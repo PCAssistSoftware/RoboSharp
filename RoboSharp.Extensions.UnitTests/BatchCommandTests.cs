@@ -16,7 +16,10 @@ namespace RoboSharp.Extensions.Tests
     [TestClass]
     public class BatchCommandTests
     {
+        public TestContext TestContext { get; set; }
+
         [TestMethod]
+        [Timeout(5000, CooperativeCancellation = true)]
         public async Task TestCopyOperation()
         {
             string destination = TestPrep.GetRandomPath(true);
@@ -30,7 +33,7 @@ namespace RoboSharp.Extensions.Tests
                 cmd.LoggingOptions.IncludeFullPathNames = true;
                 cmd.Configuration.EnableFileLogging = true;
                 cmd.AddCopiers(files);
-                var results = await Test_Setup.RunTest(cmd);
+                var results = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
                 Test_Setup.WriteLogLines(results.Results);
                 Assert.AreEqual(files.Count(), results.Results.FilesStatistic.Copied); // expect 4
             }
@@ -41,6 +44,7 @@ namespace RoboSharp.Extensions.Tests
         }
         
         [TestMethod]
+        [Timeout(5000, CooperativeCancellation =true)]
         public async Task TestCancellation()
         {
             CancellationTokenSource cToken = new CancellationTokenSource();
@@ -62,7 +66,7 @@ namespace RoboSharp.Extensions.Tests
             };
 
             cmd.OnError += (o, e) => Console.WriteLine(e.Error);
-            var results = await Test_Setup.RunTest(cmd);
+            var results = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             Test_Setup.WriteLogLines(results.Results);
             Assert.IsTrue(results.Results.Status.WasCancelled, "Results.Status.WasCancelled flag not set!");
             var numCopied = results.Results.FilesStatistic.Copied;
