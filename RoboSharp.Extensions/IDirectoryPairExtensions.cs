@@ -1,15 +1,12 @@
-﻿using RoboSharp.Extensions.Options;
+﻿using RoboSharp.Extensions.Helpers;
+using RoboSharp.Extensions.Options;
 using RoboSharp.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace RoboSharp.Extensions.Helpers
+namespace RoboSharp.Extensions
 {
 
     /// <summary>
@@ -88,7 +85,7 @@ namespace RoboSharp.Extensions.Helpers
         /// true if the directory should be processed further for COPYING, otherwise false.
         /// <br/> Note: purging/mirroing is ignored for this evaluation.
         /// </returns>
-        public static bool EvaluateDirectoryPair(this IProcessedDirectoryPair pair, IRoboCommand command, IEnumerable<DirectoryRegex> directoryExclusionRegex, bool getFileCount = false)
+        public static bool EvaluateCommandOptions(this IProcessedDirectoryPair pair, IRoboCommand command, IEnumerable<DirectoryRegex> directoryExclusionRegex, bool getFileCount = false)
         {
             var info = pair.ProcessedFileInfo ??= new ProcessedFileInfo();
             

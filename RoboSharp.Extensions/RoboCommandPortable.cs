@@ -219,8 +219,8 @@ namespace RoboSharp.Extensions
         private DirectoryRegex[] GetDirectoryRegexes() => directoryRegexes ??= SelectionOptions.GetExcludedDirectoryRegex();
         private DirectoryRegex[]? directoryRegexes;
 
-        private void EvaluateFilePair(IFileCopier pair) => pair.ProcessFilePairAgainstCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex());
-        private void EvaluateDirPair(DirectoryPair pair) => pair.EvaluateDirectoryPair(this, GetDirectoryRegexes());
+        private void EvaluateFilePair(IFileCopier pair) => pair.EvaluateCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex());
+        private void EvaluateDirPair(DirectoryPair pair) => pair.EvaluateCommandOptions(this, GetDirectoryRegexes());
 
         private void RaiseProgressUpdated(object? sender, CopyProgressEventArgs e) => OnCopyProgressChanged?.Invoke(this, e);
 
@@ -383,7 +383,7 @@ namespace RoboSharp.Extensions
                         }
                     }
 
-                    // ── 2a. Source files ──────────────────────────────────────────────────
+                    // ── Process Source files for copy/move ──────────────────────────────────────────────────
                     if (dirPair.Source.Exists)
                     {
                         if (includeEmpty)

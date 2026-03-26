@@ -1,6 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoboSharp;
-using RoboSharp.Extensions.Helpers;
 using RoboSharp.Interfaces;
 using RoboSharp.UnitTests;
 using System;

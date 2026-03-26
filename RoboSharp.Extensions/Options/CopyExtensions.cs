@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using RoboSharp.Extensions.Helpers;
 
 namespace RoboSharp.Extensions.Options
 {

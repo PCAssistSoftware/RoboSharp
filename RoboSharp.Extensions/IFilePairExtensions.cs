@@ -3,13 +3,10 @@ using RoboSharp.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace RoboSharp.Extensions.Helpers
+namespace RoboSharp.Extensions
 {
     /// <summary>
     /// Extension Methods for the <see cref="IFilePair"/> interface
@@ -24,7 +21,7 @@ namespace RoboSharp.Extensions.Helpers
         /// <param name="copyOptions_FileNameNameInclusions"><see cref="Options.CopyExtensions.GetFileFilterRegex(CopyOptions)"/></param>
         /// <param name="SelectionOptions_FileNameNameExclusions"><see cref="Options.SelectionExtensions.GetExcludedFileRegex(SelectionOptions)"/></param>
         /// <returns></returns>
-        public static bool ProcessFilePairAgainstCommandOptions(this IFileCopier pair, IRoboCommand command, IEnumerable<Regex> copyOptions_FileNameNameInclusions, IEnumerable<Regex> SelectionOptions_FileNameNameExclusions)
+        public static bool EvaluateCommandOptions(this IFileCopier pair, IRoboCommand command, IEnumerable<Regex> copyOptions_FileNameNameInclusions, IEnumerable<Regex> SelectionOptions_FileNameNameExclusions)
         {
             var sOptions = command.SelectionOptions;
             pair.ShouldCopy = false;
