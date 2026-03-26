@@ -17,6 +17,9 @@ namespace RoboSharp.Extensions.Windows
 #endif
     public sealed class CopyFileExFactory : AbstractFileCopierFactory<CopyFileEx>, IFileCopierFactory
     {
+        /// <inheritdoc cref="CopyFileExFactory" path="/summary"/>
+        public CopyFileExFactory() : base() { VersionManager.ThrowIfNotWindowsPlatform(); }
+
         /// <summary>
         /// The options to apply to generated copiers
         /// </summary>
