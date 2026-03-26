@@ -171,7 +171,8 @@ namespace RoboSharp.Extensions.Helpers
         public virtual void AddFileExtra(ProcessedFileInfo file)
         {
             ProgressEstimator.AddFileExtra(file);
-            LogFileInfo(file);
+            if (Command.LoggingOptions.VerboseOutput || Command.LoggingOptions.ReportExtraFiles)
+                LogFileInfo(file);
         }
 
         /// <summary>
@@ -219,7 +220,7 @@ namespace RoboSharp.Extensions.Helpers
         public virtual void AddFileSkipped(ProcessedFileInfo file)
         {
             ProgressEstimator.AddFileSkipped(file);
-            if (Command.LoggingOptions.ReportExtraFiles)
+            if (Command.LoggingOptions.VerboseOutput)
                 LogFileInfo(file);
         }
 
@@ -262,7 +263,9 @@ namespace RoboSharp.Extensions.Helpers
         {
             var info = topLevelDirectory.ProcessedFileInfo;
             if (topLevelDirectory.Destination.Exists)
+            {
                 ProgressEstimator.AddDirSkipped(info);
+            }
             else
             {
                 info.SetDirectoryClass(ProcessedDirectoryFlag.NewDir, Command.Configuration);

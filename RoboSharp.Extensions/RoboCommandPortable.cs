@@ -74,7 +74,7 @@ namespace RoboSharp.Extensions
         public event RoboCommand.CommandCompletedHandler? OnCommandCompleted;
         public event RoboCommand.CopyProgressHandler? OnCopyProgressChanged;
         public event RoboCommand.ProgressUpdaterCreatedHandler? OnProgressEstimatorCreated;
-        public event UnhandledExceptionEventHandler? TaskFaulted;
+        public event UnhandledExceptionEventHandler? TaskFaulted { add { } remove { } }
         public event PropertyChangedEventHandler? PropertyChanged;
 
 
@@ -219,7 +219,7 @@ namespace RoboSharp.Extensions
         private DirectoryRegex[] GetDirectoryRegexes() => directoryRegexes ??= SelectionOptions.GetExcludedDirectoryRegex();
         private DirectoryRegex[]? directoryRegexes;
 
-        private void EvaluateFilePair(IFileCopier pair) => pair.EvaluateCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex());
+        private IFilePairExtensions.EvaluationResult EvaluateFilePair(IFileCopier pair) => pair.EvaluateCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex());
         private void EvaluateDirPair(DirectoryPair pair) => pair.EvaluateCommandOptions(this, GetDirectoryRegexes());
 
         private void RaiseProgressUpdated(object? sender, CopyProgressEventArgs e) => OnCopyProgressChanged?.Invoke(this, e);
@@ -286,7 +286,7 @@ namespace RoboSharp.Extensions
 
             bool includeEmpty = this.CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror;
             bool recurse = this.CopyOptions.CopySubdirectories || this.CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror;
-            int maxDepth = !recurse ? 1 : CopyOptions.Depth == 0 ? int.MaxValue : CopyOptions.Depth;
+            int maxDepth = recurse ? (CopyOptions.Depth <= 0 ? int.MaxValue : CopyOptions.Depth) : 1;
             var rootPair = new DirectoryPair(this.CopyOptions.Source, this.CopyOptions.Destination);
             bool listOnly = LoggingOptions.ListOnly;
             bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
@@ -303,14 +303,13 @@ namespace RoboSharp.Extensions
                 // Robocopy reports totals before starting transfers; we replicate that here
                 // so ProgressEstimator can give accurate percentage estimates from the start.
 
-                await foreach (var dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
+                await foreach (DirectoryPair dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
                 {
                     // Tell the estimator a directory exists on the source side
                     EvaluateDirPair(dirPair);
                     progressReporter.AddDir(dirPair.ProcessedFileInfo);
 
                     infoDict[dirPair.Source.FullName] = dirPair.ProcessedFileInfo;
-
                     await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
                     {
                         dirPair.ProcessedFileInfo.Size++;
@@ -319,6 +318,8 @@ namespace RoboSharp.Extensions
 
                 // ── Pass 2: process each directory ───────────────────────────────────────
                 await foreach (var dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
+                //(DirectoryPair dirPair, int currentDepth)
+                await foreach (DirectoryPair dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
@@ -333,8 +334,16 @@ namespace RoboSharp.Extensions
                     }
 
                     progressReporter.AddDir(dirPair.ProcessedFileInfo);
-                    resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
+                    if (dirPair == rootPair)
+                    {
+                        resultsBuilder.AddFirstDir(rootPair);
+                    }
+                    else
+                    { 
+                        resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
+                    }
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
+
 
                     // ── Process Purge candidates (destination-only files) ────────────────────
                     // ── Perform this first to clear space and also reduce run-time (avoid evaluating files that are copied into destination)
@@ -378,7 +387,7 @@ namespace RoboSharp.Extensions
 
                         if ((CopyOptions.Mirror || CopyOptions.Purge) && dirPair.IsExtra())
                         {
-                            dirPair.Destination.Delete(true);
+                            dirPair.Destination.Delete(false);
                             continue; // source does not exist -> move to next dirpair
                         }
                     }
@@ -395,47 +404,46 @@ namespace RoboSharp.Extensions
 
                             // Evaluate populates copier.ProcessedFileInfo (FileClass, Size, Name)
                             // AND sets ShouldCopy / ShouldPurge based on this IRoboCommand's options.
-                            EvaluateFilePair(copier);
+                            if (EvaluateFilePair(copier) == IFilePairExtensions.EvaluationResult.SkippedByFilter)
+                                continue;
 
                             ProcessedFileInfo fileInfo = copier.ProcessedFileInfo;
 
-                            if (copier.ShouldCopy)
-                            {
-                                if (listOnly)
-                                {
-                                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                    progressReporter.AddFileCopied(fileInfo);
-                                    resultsBuilder.AddFileCopied(fileInfo);
-                                }
-                                else if (touchFiles)
-                                {
-                                    dirPair.Destination.Create();
-                                    if (copier.Destination.Exists is false)
-                                        copier.Destination.Create();
-
-                                    progressReporter.AddFileCopied(fileInfo);
-                                    resultsBuilder.AddFileCopied(fileInfo);
-                                }
-                                else
-                                {
-                                    await multiThreadedController.WaitAsync(cancellationToken);
-
-                                    // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
-                                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                    var task = PerformCopyOrMove(dirPair, copier, progressReporter, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
-                                    
-                                    if (task.Status < TaskStatus.RanToCompletion)
-                                        runningTasks[copier] = task;
-                                    else
-                                        await task; // acknowledge completion
-                                }
-                            }
-                            else
+                            if (!copier.ShouldCopy)
                             {
                                 // File was evaluated but not copied (skipped/extra/same/newer/older).
                                 progressReporter.AddFileSkipped(fileInfo);
                                 resultsBuilder.AddFileSkipped(fileInfo);
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                continue;
+                            }
+                            else if (listOnly)
+                            {
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                progressReporter.AddFileCopied(fileInfo);
+                                resultsBuilder.AddFileCopied(fileInfo);
+                            }
+                            else if (touchFiles)
+                            {
+                                dirPair.Destination.Create();
+                                if (copier.Destination.Exists is false)
+                                    copier.Destination.Create();
+
+                                progressReporter.AddFileCopied(fileInfo);
+                                resultsBuilder.AddFileCopied(fileInfo);
+                            }
+                            else
+                            {
+                                await multiThreadedController.WaitAsync(cancellationToken);
+
+                                // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                var task = PerformCopyOrMove(dirPair, copier, progressReporter, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
+
+                                if (task.Status < TaskStatus.RanToCompletion)
+                                    runningTasks[copier] = task;
+                                else
+                                    await task; // acknowledge completion
                             }
                         }
                     }
@@ -512,6 +520,7 @@ namespace RoboSharp.Extensions
         /// </summary>
         private async  IAsyncEnumerable<DirectoryPair> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            //yield return (root, currentDepth);
             yield return root;
 
             if (currentDepth >= maxDepth)
@@ -548,7 +557,7 @@ namespace RoboSharp.Extensions
         /// The factory decides the copier implementation; we just enumerate source files
         /// and hand each <see cref="FileInfo"/> pair to the factory.
         /// </summary>
-        private async IAsyncEnumerable<IFileCopier> CreateFileCopiers(IDirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
+        private async IAsyncEnumerable<IFileCopier> CreateFileCopiers(DirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             IEnumerable<FileInfo> sourceFiles = await Task.Run(() => dirPair.Source.EnumerateFiles("*", SearchOption.TopDirectoryOnly), cancellationToken)
                 .ConfigureAwait(false);
@@ -572,7 +581,7 @@ namespace RoboSharp.Extensions
         /// Creates purge-candidate <see cref="IFileCopier"/> instances for files that
         /// exist in the destination but not the source (i.e. "extra" files).
         /// </summary>
-        private async IAsyncEnumerable<IFileCopier> CreatePurgeCandidates(IDirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
+        private async IAsyncEnumerable<IFileCopier> CreatePurgeCandidates(DirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             if (!Directory.Exists(dirPair.Destination.FullName))
                 yield break;

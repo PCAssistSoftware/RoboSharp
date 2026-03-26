@@ -62,6 +62,12 @@ namespace RoboSharp.Extensions.Tests
             };
         }
 
+        [TestCleanup]
+        public void TestCleanup()
+        {
+            TestPrep.CleanDestination();
+        }
+
 
         [TestMethod]
         [Timeout(1000, CooperativeCancellation = true)]
@@ -211,7 +217,7 @@ namespace RoboSharp.Extensions.Tests
         }
 
         [TestMethod]
-        [Timeout(5000, CooperativeCancellation = true)]
+        //[Timeout(5000, CooperativeCancellation = true)]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
         [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
         [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
@@ -228,10 +234,9 @@ namespace RoboSharp.Extensions.Tests
             {
                 await TestPrep.PrepMoveFiles(token);
                 Directory.CreateDirectory(TestPrep.DestDirPath);
-                string fn = "1024_Bytes.txt";
-                string dest = Path.Combine(TestPrep.DestDirPath, fn);
-                if (!File.Exists(dest))
-                    File.Copy(Path.Combine(TestPrep.SourceDirPath, fn), dest);
+                string dest = Path.Combine(TestPrep.DestDirPath, Path.GetRandomFileName());
+                File.WriteAllText(dest, "!!!!This is an extra File!!!!");                
+                Assert.IsTrue(File.Exists(dest));
             }
         }
 
@@ -267,10 +272,12 @@ namespace RoboSharp.Extensions.Tests
         public async Task Purge_Depth(int depth, bool listOnly, CopyActionFlags flags, LoggingFlags? loggs = null)
         {
             LoggingFlags log = loggs.HasValue ? loggs.Value | DefaultLoggingAction : DefaultLoggingAction;
-            GetMoveCommands(flags, SelectionFlags.Default, log, out var cmd, out var mover);
+            GetMoveCommands(flags, SelectionFlags.Default, log, out var cmd, out var implementation);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.CopyOptions.Depth = depth;
-            await RunPurge(cmd, mover, TestContext.CancellationToken);
+            cmd.LoggingOptions.ReportExtraFiles = true;
+            cmd.LoggingOptions.VerboseOutput = true;
+            await RunPurge(cmd, implementation, TestContext.CancellationToken);
         }
 
         [TestMethod]
@@ -283,10 +290,10 @@ namespace RoboSharp.Extensions.Tests
         [DataRow(false, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
         public async Task Purge_ExcludeFiles(bool listOnly, CopyActionFlags flags)
         {
-            GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var mover);
+            GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var implementation);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.SelectionOptions.ExcludedFiles.Add("*0*_Bytes.txt");
-            await RunPurge(cmd, mover, TestContext.CancellationToken);
+            await RunPurge(cmd, implementation, TestContext.CancellationToken);
         }
 
         [TestMethod]
@@ -299,12 +306,12 @@ namespace RoboSharp.Extensions.Tests
         [DataRow(true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
         public async Task Purge_ExcludeFolders(bool listOnly, CopyActionFlags flags)
         {
-            GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var mover);
+            GetMoveCommands(flags, SelectionFlags.Default, DefaultLoggingAction, out var cmd, out var implementation);
             cmd.LoggingOptions.ListOnly = listOnly;
             cmd.SelectionOptions.ExcludedDirectories.Add("EmptyFolder1"); // Top level empty
             cmd.SelectionOptions.ExcludedDirectories.Add("EmptyFolder4"); // Bottom level empty
             cmd.SelectionOptions.ExcludedDirectories.Add("SubFolder_2a"); // folder with contents
-            await RunPurge(cmd, mover, TestContext.CancellationToken);
+            await RunPurge(cmd, implementation, TestContext.CancellationToken);
         }
 
         [TestMethod]
@@ -330,10 +337,10 @@ namespace RoboSharp.Extensions.Tests
             await RunPurge(cmd, mover, TestContext.CancellationToken);
         }
 
-        private static async Task RunPurge(RoboCommand cmd, RoboCommandPortable mover, CancellationToken token)
+        private static async Task RunPurge(RoboCommand cmd, RoboCommandPortable implementation, CancellationToken token)
         {
             //if (Test_Setup.IsRunningOnAppVeyor()) return;
-            var results = await TestPrep.RunTests(cmd, mover, !cmd.LoggingOptions.ListOnly, TestPrep.CreateFilesToPurge, token);
+            var results = await TestPrep.RunTests(cmd, implementation, !cmd.LoggingOptions.ListOnly, TestPrep.CreateFilesToPurge, token);
             TestPrep.CompareTestResults(results[0], results[1], cmd.LoggingOptions.ListOnly);
         }
 

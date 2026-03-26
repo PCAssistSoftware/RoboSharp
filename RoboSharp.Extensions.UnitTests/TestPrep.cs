@@ -252,11 +252,14 @@ namespace RoboSharp.Extensions.Tests
             await PrepMoveFiles(token);
             token.ThrowIfCancellationRequested();
             RoboCommand prep = new RoboCommand();
+            token.Register(() => prep.Stop());
+
             prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_1");
             prep.CopyOptions.Destination = Path.Combine(Test_Setup.TestDestination, "SubFolder_3");
             prep.CopyOptions.ApplyActionFlags(CopyActionFlags.CopySubdirectoriesIncludingEmpty);
             Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder1", "EmptyFolder2"));
             await prep.Start();
+            
             prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_2");
             prep.CopyOptions.Destination = Path.Combine(prep.CopyOptions.Destination, "SubFolder_2a");
             await prep.Start();

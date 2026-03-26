@@ -163,8 +163,7 @@ namespace RoboSharp.Extensions.Options
         /// </returns>
         public static bool ShouldIncludeFileName(this CopyOptions options, string fileName, IEnumerable<Regex> fileFilterRegex = null)
         {
-
-            if (fileFilterRegex is null) fileFilterRegex = options.GetFileFilterRegex();
+            fileFilterRegex ??= options.GetFileFilterRegex();
             if (fileFilterRegex.None()) return true;
             return fileFilterRegex.Any(r => r.IsMatch(fileName));
         }

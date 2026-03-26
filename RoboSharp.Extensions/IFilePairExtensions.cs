@@ -14,6 +14,27 @@ namespace RoboSharp.Extensions
     public static class IFilePairExtensions
     {
         /// <summary>
+        /// A return result for <see cref="EvaluateCommandOptions"/>
+        /// </summary>
+        public enum EvaluationResult
+        {
+            /// <summary>
+            /// File was Excluded for one of the various reasons. 
+            /// </summary>
+            Excluded,
+            
+            /// <summary>
+            /// File was skipped because it does not match the <see cref="CopyOptions.FileFilter"/>
+            /// </summary>
+            SkippedByFilter,
+            
+            /// <summary>
+            /// File selected for processing.
+            /// </summary>
+            Included
+        }
+
+        /// <summary>
         /// Evaluate a <see cref="IFilePair"/> against the <paramref name="command"/> options to determine if it should be copied or not.
         /// </summary>
         /// <param name="pair">the file pair to evaluate</param>
@@ -21,101 +42,101 @@ namespace RoboSharp.Extensions
         /// <param name="copyOptions_FileNameNameInclusions"><see cref="Options.CopyExtensions.GetFileFilterRegex(CopyOptions)"/></param>
         /// <param name="SelectionOptions_FileNameNameExclusions"><see cref="Options.SelectionExtensions.GetExcludedFileRegex(SelectionOptions)"/></param>
         /// <returns></returns>
-        public static bool EvaluateCommandOptions(this IFileCopier pair, IRoboCommand command, IEnumerable<Regex> copyOptions_FileNameNameInclusions, IEnumerable<Regex> SelectionOptions_FileNameNameExclusions)
+        public static EvaluationResult EvaluateCommandOptions(this IFileCopier pair, IRoboCommand command, IEnumerable<Regex> copyOptions_FileNameNameInclusions, IEnumerable<Regex> SelectionOptions_FileNameNameExclusions)
         {
             var sOptions = command.SelectionOptions;
             pair.ShouldCopy = false;
-            
+            pair.ShouldPurge = false;
+
             // Extra
             if (pair.IsExtra())
             {
                 pair.ProcessedFileInfo = new ProcessedFileInfo(pair.Destination, command, ProcessedFileFlag.ExtraFile);
                 _ = command.ShouldPurge(pair); // process for purging
-                return false;
+                return EvaluationResult.Excluded;
             }
 
-            pair.ShouldPurge = false;
             ProcessedFileInfo pInfo = pair.ProcessedFileInfo ??= new ProcessedFileInfo(pair.Source, command, ProcessedFileFlag.None);
+
+            // evaluate Names
+            if (!Options.CopyExtensions.ShouldIncludeFileName(command.CopyOptions, pair.Source, copyOptions_FileNameNameInclusions))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return EvaluationResult.SkippedByFilter;
+            }
+
+            if (Options.SelectionExtensions.ShouldExcludeFileName(command.SelectionOptions, pair.Source, SelectionOptions_FileNameNameExclusions))
+            {
+                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
+                return EvaluationResult.Excluded;
+            }
 
             // lonely files 
             if (sOptions.ShouldExcludeLonely(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.NewFile, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             // file age
             if (sOptions.ShouldExcludeMaxFileAge(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.MaxAgeSizeExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
             if (sOptions.ShouldExcludeMinFileAge(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.MinAgeSizeExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             // file size
             if (sOptions.ShouldExcludeMaxFileSize(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.MaxFileSizeExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
             if (sOptions.ShouldExcludeMinFileSize(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.MinFileSizeExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             // older / newer
             if (sOptions.ShouldExcludeNewer(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.NewerFile, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
             if (sOptions.ShouldExcludeOlder(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.OlderFile, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             // access date
             if (sOptions.ShouldExcludeMaxLastAccessDate(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
             if (sOptions.ShouldExcludeMinLastAccessDate(pair))
             {
                 pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             if (sOptions.ShouldIncludeAttributes(pair) == false)
             {
                 pInfo.SetFileClass(ProcessedFileFlag.AttribExclusion, command.Configuration);
-                return false;
-            }
-
-            // potentially expensive regex tests
-            if (!Options.CopyExtensions.ShouldIncludeFileName(command.CopyOptions, pair.Source, copyOptions_FileNameNameInclusions))
-            {
-                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
-                return false;
-            }
-
-            if (Options.SelectionExtensions.ShouldExcludeFileName(command.SelectionOptions, pair.Source, SelectionOptions_FileNameNameExclusions))
-            {
-                pInfo.SetFileClass(ProcessedFileFlag.FileExclusion, command.Configuration);
-                return false;
+                return EvaluationResult.Excluded;
             }
 
             if (pair.IsSameDate())
             {
                 pInfo.SetFileClass(ProcessedFileFlag.SameFile, command.Configuration);
                 pair.ShouldCopy = command.SelectionOptions.IncludeSame;
-                return pair.ShouldCopy;
+                return pair.ShouldCopy ? EvaluationResult.Included : EvaluationResult.Excluded;
             }
 
             pair.ShouldCopy = true;
@@ -125,7 +146,7 @@ namespace RoboSharp.Extensions
                 : pair.IsSameDate() ? ProcessedFileFlag.SameFile : ProcessedFileFlag.TweakedInclusion;
 
             pInfo.SetFileClass(flag, command.Configuration);
-            return true;
+            return EvaluationResult.Included;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
