@@ -9,7 +9,7 @@ name: Build and Test
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "dev", "Extensions.Mocks" ]
   pull_request:
     branches: [ "dev" ]
 
