@@ -21,6 +21,7 @@ namespace RoboSharp.BackupApp.ViewModels
             SingleJobHistory = new JobHistoryViewModel();
             BatchCommandViewModel = new BatchCommandViewModel();
             System.Windows.Input.CommandManager.RequerySuggested += CommandManager_RequerySuggested;
+            CommandGenerator = new CommandGeneratorViewModel(CommandFactory);
         }
 
         private void CommandManager_RequerySuggested(object sender, EventArgs e)
@@ -34,12 +35,29 @@ namespace RoboSharp.BackupApp.ViewModels
         }
 
         public RoboQueueViewModel RoboQueueViewModel { get; } = new RoboQueueViewModel(new RoboQueue("RoboQueue"));
-        public CommandGeneratorViewModel CommandGenerator { get; } = new CommandGeneratorViewModel();
+        public CommandGeneratorViewModel CommandGenerator { get; }
         public CommandProgressViewModel SingleJobProgress { get; } = new CommandProgressViewModel();
         public JobHistoryViewModel SingleJobHistory { get; } 
         public BatchCommandViewModel BatchCommandViewModel { get; }
 
+        public CommandFactoryVM CommandFactory { get; } = new CommandFactoryVM();
        
+        public class CommandFactoryVM : RoboSharp.RoboCommandFactory
+        {
+            public override IRoboCommand GetRoboCommand()
+            {
+                if (RoboCommand) return base.GetRoboCommand();
+                if (RoboCommandPortable_Streamed) return new Extensions.RoboCommandPortable(Extensions.StreamedCopierFactory.DefaultFactory);
+                if (RoboCommandPortable_CopyFileEx) return new Extensions.RoboCommandPortable(new Extensions.Windows.CopyFileExFactory());
+                if (RoboMover) return new Extensions.RoboMover();
+                return base.GetRoboCommand();
+            }
+            public bool RoboCommand { get; set; } = true;
+            public bool RoboCommandPortable_Streamed { get; set; }
+            public bool RoboCommandPortable_CopyFileEx { get; set; }
+            public bool RoboMover { get; set; }
+        }
+
 
         #region < RoboCommand Buttons >
 

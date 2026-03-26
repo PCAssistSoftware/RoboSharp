@@ -84,7 +84,17 @@
                                 <TextBox Grid.Row="4" Text="{Binding JobNameTextbox}"  Width="175" Grid.ColumnSpan="1" LostFocus="RefreshQueueListbox" />
                             </Grid>
                             <!-- Job Options -->
-                            <StackPanel Margin="34,10,20,10" DataContext="{Binding CommandGenerator}" Name="CopyOptionsExpander">
+                            <Expander Header="Command Types" Margin="34,10,20,0" Background="LightYellow">
+                                <GroupBox>
+                                    <StackPanel>
+                                        <RadioButton Content="RoboCommand (default)" IsChecked="{Binding CommandFactory.RoboCommand}" />
+                                        <RadioButton Content="RoboCommandPortable - StreamedFileCopier" IsChecked="{Binding CommandFactory.RoboCommandPortable_Streamed}" />
+                                        <RadioButton Content="RoboCommandPortable - CopyFileEx" IsChecked="{Binding CommandFactory.RoboCommandPortable_CopyFileEx}" />
+                                        <RadioButton Content="RoboMover" IsChecked="{Binding CommandFactory.RoboMover}" />
+                                    </StackPanel>
+                                </GroupBox>
+                            </Expander>
+                            <StackPanel Margin="34,0,20,10" DataContext="{Binding CommandGenerator}" Name="CopyOptionsExpander">
                                 <Expander Background="LightBlue" Header="Copy Options" DataContext="{Binding Command.CopyOptions}">
                                     <Grid Margin="10">
                                         <Grid.RowDefinitions>

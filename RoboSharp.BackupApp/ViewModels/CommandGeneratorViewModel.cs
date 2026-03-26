@@ -14,8 +14,9 @@ namespace RoboSharp.BackupApp.ViewModels
 {
     internal partial class CommandGeneratorViewModel : ObservableObject
     {
-        public CommandGeneratorViewModel() 
+        public CommandGeneratorViewModel(IRoboCommandFactory factory) 
         {
+            this.factory = factory;
             ResetOptions();
             this.PropertyChanged += PropertyChangedHandler;
             System.Windows.Input.CommandManager.RequerySuggested += CommandManager_RequerySuggested;
@@ -28,6 +29,8 @@ namespace RoboSharp.BackupApp.ViewModels
             this.BtnParseCommandCommand.NotifyCanExecuteChanged();
             this.BtnParseCommandOptionsCommand.NotifyCanExecuteChanged();
         }
+
+        private readonly IRoboCommandFactory factory;
 
         [ObservableProperty] private IRoboCommand _command;
         [ObservableProperty] private string runHoursStart;
@@ -46,7 +49,13 @@ namespace RoboSharp.BackupApp.ViewModels
         public IRoboCommand GetCommand()
         {
             UpdateCommandName();
-            return new RoboCommand(Command);
+            var cmd = factory.GetRoboCommand();
+            cmd.CopyOptions = Command.CopyOptions;
+            cmd.LoggingOptions = Command.LoggingOptions;
+            cmd.RetryOptions = Command.RetryOptions;
+            cmd.SelectionOptions = Command.SelectionOptions;
+            cmd.JobOptions.Merge(Command.JobOptions);
+            return cmd;
         }
 
         private void UpdateCommandName()
