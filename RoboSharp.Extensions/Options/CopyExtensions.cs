@@ -52,9 +52,9 @@ namespace RoboSharp.Extensions.Options
         /// <summary>
         /// Evaluates the <paramref name="options"/> to check if any of the PURGE options are enabled
         /// </summary>
-        public static bool IsPurging(this CopyOptions options) =>
-            options.Purge ||
-            options.Mirror;
+        public static bool IsPurging(this IRoboCommand command) =>
+            command.SelectionOptions.ExcludeExtra is false
+            && (command.CopyOptions.Purge || command.CopyOptions.Mirror);
 
         /// <summary>
         /// Compare the current depth against the maximum allowed depth, and determine if directory recursion can continue.

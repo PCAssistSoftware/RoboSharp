@@ -247,7 +247,7 @@ namespace RoboSharp.Extensions.Tests
                     );
         }
 
-        public static async Task CreateFilesToPurge(CancellationToken token)
+        public static async Task CreateExtraDirectories(CancellationToken token)
         {
             await PrepMoveFiles(token);
             token.ThrowIfCancellationRequested();

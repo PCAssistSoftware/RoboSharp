@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -290,7 +291,13 @@ namespace RoboSharp.Extensions
             var rootPair = new DirectoryPair(this.CopyOptions.Source, this.CopyOptions.Destination);
             bool listOnly = LoggingOptions.ListOnly;
             bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
+            bool purging = !SelectionOptions.ExcludeExtra && (CopyOptions.Purge || CopyOptions.Mirror);
+            bool reportExtraFiles = (!SelectionOptions.ExcludeExtra || (purging && CopyOptions.Depth != 1) ) && (LoggingOptions.VerboseOutput || LoggingOptions.ReportExtraFiles);
             
+            // !!!! -- TODO : FIX REPORTeXTRAdIRS -- THIS IS NOT WORKING YET ---
+            // Something to do with maxdepth == 1 & all other conditions...
+            bool reportExtraDirs = maxDepth != 1 && !(!purging && !(CopyOptions.IsRecursive()) && !LoggingOptions.ReportExtraFiles && !CopyOptions.HasDefaultFileFilter());
+            //reportExtraFiles || (CopyOptions.CopySubdirectories || CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.MoveFilesAndDirectories); 
 
             SemaphoreSlim multiThreadedController = new SemaphoreSlim(CopyOptions.MultiThreadedCopiesCount >= 128 ? 128 : CopyOptions.MultiThreadedCopiesCount <= 1 ? 1 : CopyOptions.MultiThreadedCopiesCount);
             Dictionary<string, ProcessedFileInfo> infoDict = new();
@@ -303,13 +310,14 @@ namespace RoboSharp.Extensions
                 // Robocopy reports totals before starting transfers; we replicate that here
                 // so ProgressEstimator can give accurate percentage estimates from the start.
 
-                await foreach (DirectoryPair dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
+                await foreach ((DirectoryPair dirPair, _) in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
                 {
                     // Tell the estimator a directory exists on the source side
                     EvaluateDirPair(dirPair);
-                    progressReporter.AddDir(dirPair.ProcessedFileInfo);
-
-                    infoDict[dirPair.Source.FullName] = dirPair.ProcessedFileInfo;
+                    //if (depth > maxDepth)
+                    //    dirPair.ProcessedFileInfo.SetDirectoryClass(ProcessedDirectoryFlag.ExtraDir, Configuration);
+                    
+                    infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
                     await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
                     {
                         dirPair.ProcessedFileInfo.Size++;
@@ -317,20 +325,18 @@ namespace RoboSharp.Extensions
                 }
 
                 // ── Pass 2: process each directory ───────────────────────────────────────
-                await foreach (var dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
-                //(DirectoryPair dirPair, int currentDepth)
-                await foreach (DirectoryPair dirPair in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
+                await foreach ((DirectoryPair dirPair, int currentDepth) in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (infoDict.TryGetValue(dirPair.Source.FullName, out var pInfo))
+                    if (infoDict.TryGetValue(dirPair.Destination.FullName, out var pInfo))
                     {
                         dirPair.ProcessedFileInfo = pInfo;
-                        infoDict.Remove(dirPair.Source.FullName); // key will never be read again
                     }
                     else
                     {
                         EvaluateDirPair(dirPair);
+                        infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
                     }
 
                     progressReporter.AddDir(dirPair.ProcessedFileInfo);
@@ -349,6 +355,13 @@ namespace RoboSharp.Extensions
                     // ── Perform this first to clear space and also reduce run-time (avoid evaluating files that are copied into destination)
                     if (dirPair.Destination.Exists)
                     {
+                        if (purging && dirPair.IsExtra())
+                        {
+                            dirPair.Destination.Delete(true);
+                            continue; // source does not exist -> move to next dirpair
+                        }
+
+                        // Report or Purge extra files
                         await foreach (IFileCopier purgeCopier in CreatePurgeCandidates(dirPair, cancellationToken))
                         {
                             cancellationToken.ThrowIfCancellationRequested();
@@ -385,17 +398,41 @@ namespace RoboSharp.Extensions
                             }
                         }
 
-                        if ((CopyOptions.Mirror || CopyOptions.Purge) && dirPair.IsExtra())
+                        // Detect Extra Directories
+                        if (true || currentDepth <= maxDepth)
                         {
-                            dirPair.Destination.Delete(false);
-                            continue; // source does not exist -> move to next dirpair
+                            foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
+                            {
+                                // check if dictionary contains the key
+                                if (infoDict.ContainsKey(child))
+                                    continue;
+
+                                // not part of source tree:
+                                if (reportExtraDirs)
+                                {
+                                    var info = new ProcessedFileInfo(child, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
+                                    resultsBuilder.AddDir(info);
+                                }
+
+                                if (purging)
+                                {
+                                    try
+                                    {
+                                        Directory.Delete(child, true);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        OnCommandError?.Invoke(this, new CommandErrorEventArgs($"Unable to purge directory : {child}", e));
+                                    }
+                                }
+                            }
                         }
                     }
 
                     // ── Process Source files for copy/move ──────────────────────────────────────────────────
                     if (dirPair.Source.Exists)
                     {
-                        if (includeEmpty)
+                        if (includeEmpty && !listOnly)
                             dirPair.Destination.Create();
 
                         await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
@@ -514,14 +551,50 @@ namespace RoboSharp.Extensions
             }
         }
 
-        /// <summary>
-        /// Yields the root pair and (if recurse is true) all sub-directory pairs,
-        /// mirroring Robocopy's directory tree walk.
-        /// </summary>
-        private async  IAsyncEnumerable<DirectoryPair> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
+        /// <summary> Processes an EXTRA directory tree from the destination, potentially purging it.</summary>
+        private void ProcessExtraDirectory(DirectoryPair pair, int currentDepth, ResultsBuilder resultsBuilder)
         {
-            //yield return (root, currentDepth);
-            yield return root;
+            if (!pair.Destination.Exists) return;
+            bool shouldPurge = CopyOptions.Purge && this.ShouldPurge(pair);
+
+            // This gets it to pass unit tests, but *feels* wrong
+            if (!shouldPurge && !CopyOptions.IsRecursive() && !LoggingOptions.ReportExtraFiles && !CopyOptions.HasDefaultFileFilter()) return;
+
+            if (pair.ProcessedFileInfo is null)
+                pair.ProcessedFileInfo = new ProcessedFileInfo(directory: pair.Destination, this, ProcessedDirectoryFlag.ExtraDir, size: -1);
+
+            resultsBuilder.AddDir(pair.ProcessedFileInfo);
+            if (!shouldPurge) return;
+
+            ////Process Files
+            //IEnumerable<FilePair> files = pair.DestinationFiles;
+            //foreach (var file in files)
+            //{
+            //    if (cancelRequest.IsCancellationRequested) break;
+            //    ProcessExtraFile(file);
+            //}
+
+            //// Dig into subdirectories
+            //if (PairEvaluator.CanDigDeeper(currentDepth))
+            //{
+            //    foreach (var dir in pair.ExtraDirectories)
+            //    {
+            //        if (cancelRequest.IsCancellationRequested) break;
+            //        ProcessExtraDirectory(dir, currentDepth + 1);
+            //    }
+            //}
+
+            // Delete the current directory
+
+        }
+
+        /// <summary>
+        /// Yields the root pair and (if recurse is true) all sub-directory pairs, mirroring Robocopy's directory tree walk.
+        /// <br/> Only yields items from the Source tree
+        /// </summary>
+        private async  IAsyncEnumerable<(DirectoryPair dirPair, int currentDepth)> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            yield return (root, currentDepth);
 
             if (currentDepth >= maxDepth)
                 yield break;

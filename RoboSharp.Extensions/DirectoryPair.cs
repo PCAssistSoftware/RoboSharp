@@ -80,6 +80,50 @@ namespace RoboSharp.Extensions
         /// <remarks>Refresh this via <see cref="Refresh"/></remarks>
         public CachedEnumerable<DirectoryPair> SourceDirectories => lazySourceDirs.Value;
 
+#if NET6_0_OR_GREATER
+        /// <summary>
+        /// Gets a direct descendant of this node
+        /// </summary>
+        /// <param name="child"></param>
+        /// <returns></returns>
+        public DirectoryPair CreateChild(DirectoryInfo child)
+        {
+            string path;
+            if (child.FullName.StartsWith(Source.FullName))
+            {
+                path = Path.Combine(Destination.FullName, Path.GetRelativePath(Source.FullName, child.FullName));
+                return new DirectoryPair(child, new DirectoryInfo(path));
+            }
+            if (child.FullName.StartsWith(Destination.FullName))
+            {
+                path = Path.Combine(Source.FullName, Path.GetRelativePath(Destination.FullName, child.FullName));
+                return new DirectoryPair(child, new DirectoryInfo(path));
+            }
+            throw new InvalidOperationException($"Directory '{child.FullName}' is not a child of this DirectoryPair");
+        }
+
+        /// <summary>
+        /// Gets a direct descendant of this node
+        /// </summary>
+        /// <param name="child"></param>
+        /// <returns></returns>
+        public FilePair CreateChild(FileInfo child)
+        {
+            string path;
+            if (child.FullName.StartsWith(Source.FullName))
+            {
+                path = Path.Combine(Destination.FullName, Path.GetRelativePath(Source.FullName, child.FullName));
+                return new FilePair(child, new FileInfo(path));
+            }
+            if (child.FullName.StartsWith(Destination.FullName))
+            {
+                path = Path.Combine(Source.FullName, Path.GetRelativePath(Destination.FullName, child.FullName));
+                return new FilePair(child, new FileInfo(path));
+            }
+            throw new InvalidOperationException($"Directory '{child.FullName}' is not a child of this DirectoryPair");
+        }
+#endif
+
         /// <inheritdoc cref="FileSystemInfo.Refresh"/>
         public void Refresh()
         {
