@@ -54,12 +54,19 @@ namespace RoboSharp.Extensions.Tests
             return cmd;
         }
 
-        public static async Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Action actionBetweenRuns = null)
+
+        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns)
+            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: null);
+
+        public static Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Action actionBetweenRuns)
+            => RunTests(roboCommand, customCommand, CleanBetweenRuns, taskBetweenRuns: actionBetweenRuns is null ? null : () => Task.Run(actionBetweenRuns));
+
+        public static async Task<RoboSharpTestResults[]> RunTests(RoboCommand roboCommand, IRoboCommand customCommand, bool CleanBetweenRuns, Func<Task> taskBetweenRuns)
         {
             var results = new List<RoboSharpTestResults>();
-            BetweenRuns();
+            await BetweenRuns();
             results.Add(await TestSetup.RunTest(roboCommand));
-            if (!roboCommand.LoggingOptions.ListOnly) BetweenRuns();
+            if (!roboCommand.LoggingOptions.ListOnly) await BetweenRuns();
             
             customCommand.OnError += CachedRoboCommand_OnError;
             customCommand.OnCommandError += CachedRoboCommand_OnCommandError;
@@ -72,13 +79,12 @@ namespace RoboSharp.Extensions.Tests
             if (CleanBetweenRuns) TestSetup.ClearOutTestDestination();
             return results.ToArray();
 
-            void BetweenRuns()
+            async Task BetweenRuns()
             {
                 if (CleanBetweenRuns) TestSetup.ClearOutTestDestination();
-                actionBetweenRuns?.Invoke();
+                if (taskBetweenRuns is not null)
+                    await taskBetweenRuns();
             }
-
-
         }
         private static void CachedRoboCommand_OnCommandError(IRoboCommand sender, CommandErrorEventArgs e) => Console.WriteLine(e.Exception);
         private static void CachedRoboCommand_OnError(IRoboCommand sender, RoboSharp.ErrorEventArgs e) => Console.WriteLine(e.Error);

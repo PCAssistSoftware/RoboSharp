@@ -14,7 +14,7 @@ namespace RoboSharp.UnitTests
         /// This test ensures that the destination directory is not created when using the /QUIT function
         /// </summary>
         [TestMethod]
-        public void TestListOnlyDestinationCreation() 
+        public async Task TestListOnlyDestinationCreation() 
         {
             RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName()));
             Console.WriteLine("Destination Path: " + cmd.CopyOptions.Destination);
@@ -26,19 +26,19 @@ namespace RoboSharp.UnitTests
             Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nDestination Directory was created during authentication!");
 
             cmd.LoggingOptions.ListOnly = false;
-            cmd.Start_ListOnly().Wait();
+            await cmd.Start_ListOnly();
             Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nStart_ListOnly() - Destination Directory was created!");
 
             cmd.LoggingOptions.ListOnly = false;
-            cmd.StartAsync_ListOnly().Wait();
+            await cmd.StartAsync_ListOnly();
             Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nStartAsync_ListOnly() - Destination Directory was created!");
 
             cmd.LoggingOptions.ListOnly = true;
-            cmd.Start().Wait();
+            await cmd.Start();
             Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nList-Only Setting - Destination Directory was created!");
 
             cmd.LoggingOptions.ListOnly = false;
-            cmd.Start().Wait();
+            await cmd.Start();
             Assert.IsTrue(Directory.Exists(cmd.CopyOptions.Destination), "\nDestination Directory was not created.");
         }
 
@@ -74,11 +74,11 @@ namespace RoboSharp.UnitTests
         [DataRow(true)]
         [DataRow(false)]
         [TestMethod]
-        public void TestBytes(bool withBytes)
+        public async Task TestBytes(bool withBytes)
         {
             RoboCommand cmd = Test_Setup.GenerateCommand(false, true);
             cmd.LoggingOptions.PrintSizesAsBytes = withBytes;
-            cmd.Start().Wait();
+            await cmd.Start();
             var results = cmd.GetResults();
             Assert.IsNotNull(results);
             results.LogLines.ToList().ForEach(Console.WriteLine);
@@ -90,12 +90,12 @@ namespace RoboSharp.UnitTests
         [DataRow(true, false)]
         [DataRow(false, false)]
         [TestMethod]
-        public void ConfigurationLoggingEnabled(bool isEnabled, bool listOnly)
+        public async Task ConfigurationLoggingEnabled(bool isEnabled, bool listOnly)
         {
             Test_Setup.ClearOutTestDestination();
             RoboCommand cmd = Test_Setup.GenerateCommand(false, listOnly);
             cmd.Configuration.EnableFileLogging = isEnabled;
-            cmd.Start().Wait();
+            await cmd.Start();
             var results = cmd.GetResults();
             Assert.IsNotNull(results);
             results.LogLines.ToList().ForEach(Console.WriteLine);
@@ -106,14 +106,14 @@ namespace RoboSharp.UnitTests
         [DataRow(true, false, DisplayName = "No Summary")]
         [DataRow(false, false, DisplayName = "No Header, No Summary")]
         [TestMethod]
-        public void TestSummaryAndHeader(bool header, bool summary)
+        public async Task TestSummaryAndHeader(bool header, bool summary)
         {
             Test_Setup.ClearOutTestDestination();
             RoboCommand cmd = Test_Setup.GenerateCommand(false, true);
             //cmd.Configuration.EnableFileLogging = true;
             cmd.LoggingOptions.NoJobHeader = !header;
             cmd.LoggingOptions.NoJobSummary= !summary;
-            cmd.Start().Wait();
+            await cmd.Start();
             var results = cmd.GetResults();
             Assert.IsNotNull(results);
             results.LogLines.ToList().ForEach(Console.WriteLine);

@@ -59,7 +59,7 @@ namespace RoboSharp.UnitTests
         /// This test ensures that the destination directory is not created when using the /QUIT function
         /// </summary>
         [TestMethod]
-        public void TestPreventCopy() 
+        public async Task TestPreventCopy() 
         {
             RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName()));
             Console.WriteLine("Destination Path: " + cmd.CopyOptions.Destination);
@@ -71,10 +71,10 @@ namespace RoboSharp.UnitTests
                 Authentication.AuthenticateDestination(cmd);
                 Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nDestination Directory was created during authentication!");
 
-                cmd.Start().Wait();
+                await cmd.Start();
                 Assert.IsFalse(Directory.Exists(cmd.CopyOptions.Destination), "\nDestination Directory was created when running the command!");
                 cmd.JobOptions.PreventCopyOperation = false;
-                cmd.Start().Wait();
+                await cmd.Start();
                 Assert.IsTrue(Directory.Exists(cmd.CopyOptions.Destination), "\nDestination Directory was not created.");
             }
             finally

@@ -17,44 +17,44 @@ namespace RoboSharp.UnitTests
             return new RoboQueue(cmd);
         }
 
-        private static void RunTestThenAssert(RoboQueue Q, ref bool testPassed)
+        private static async Task RunTestThenAssert(RoboQueue Q, Func<bool> testPassed)
         {
-            Q.StartAll().Wait();
+            await Q.StartAll();
             if (Q.RunResults.Count > 0) Test_Setup.WriteLogLines(Q.RunResults[0], true);
-            if (!testPassed) throw new AssertFailedException("Subscribed Event was not Raised!");
+            if (!testPassed()) throw new AssertFailedException("Subscribed Event was not Raised!");
         }
 
         [TestMethod]
-        public void RoboQueue_OnCommandCompleted()
+        public async Task RoboQueue_OnCommandCompleted()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.OnCommandCompleted += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_OnCommandError()
+        public async Task RoboQueue_OnCommandError()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             cmd.CopyOptions.Source += "FolderDoesNotExist";
             bool TestPassed = false;
             RQ.OnCommandError += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_OnCopyProgressChanged()
+        public async Task RoboQueue_OnCopyProgressChanged()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             Test_Setup.ClearOutTestDestination();
             bool TestPassed = false;
             RQ.OnCopyProgressChanged += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_OnError()
+        public async Task RoboQueue_OnError()
         {
             if (Test_Setup.IsRunningOnAppVeyor()) return;
 
@@ -68,64 +68,64 @@ namespace RoboSharp.UnitTests
             {
                 f.WriteLine("StartTest!");
                 Console.WriteLine("Expecting 1 File Failed!\n\n");
-                RunTestThenAssert(RQ, ref TestPassed);
+                await RunTestThenAssert(RQ, () => TestPassed);
             }
         }
 
         [TestMethod]
-        public void RoboQueue_OnFileProcessed()
+        public async Task RoboQueue_OnFileProcessed()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             Test_Setup.ClearOutTestDestination();
             bool TestPassed = false;
             RQ.OnFileProcessed += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
 
         [TestMethod]
-        public void RoboQueue_ProgressEstimatorCreated()
+        public async Task RoboQueue_ProgressEstimatorCreated()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.OnProgressEstimatorCreated += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_OnCommandStarted()
+        public async Task RoboQueue_OnCommandStarted()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.OnCommandStarted += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_RunCompleted()
+        public async Task RoboQueue_RunCompleted()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.RunCompleted += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await  RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_RunResultsUpdated()
+        public async Task RoboQueue_RunResultsUpdated()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.RunResultsUpdated += (o, e) => TestPassed = true;
-            RunTestThenAssert(RQ, ref TestPassed);
+            await RunTestThenAssert(RQ, () => TestPassed);
         }
 
         [TestMethod]
-        public void RoboQueue_ListResultsUpdated()
+        public async Task RoboQueue_ListResultsUpdated()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.ListResultsUpdated += (o, e) => TestPassed = true;
-            RQ.StartAll_ListOnly().Wait();
+            await RQ.StartAll_ListOnly();
             if (!TestPassed) throw new AssertFailedException("ListResultsUpdated Event was not Raised!");
         }
 

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace RoboSharp.UnitTests
 {
@@ -25,67 +26,67 @@ namespace RoboSharp.UnitTests
         public virtual bool ListOnlyMode => false;
         
         //[TestMethod]
-        public void SAMPLE_TEST_METHOD()
+        public async Task SAMPLE_TEST_METHOD()
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
             
 
             //Run the test and Evaluate the results and pass/Fail the test
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             UnitTestResults.AssertTest();
         }
 
 
         [TestMethod]
-        public void Test_NoCopyOptions()
+        public async Task Test_NoCopyOptions()
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
 
             //Run the test - First Test should just use default values generated from the GenerateCommand method!
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
 
             //Evaluate the results and pass/Fail the test
             UnitTestResults.AssertTest();
         }
 
         [TestMethod]
-        public void Test_ExcludedFiles()
+        public async Task Test_ExcludedFiles()
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
             cmd.SelectionOptions.ExcludedFiles.Add("4_Bytes.txt"); // 3 copies of this file exist
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
 
         [TestMethod]
-        public void Test_MinFileSize()
+        public async Task Test_MinFileSize()
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(true, ListOnlyMode);
             cmd.SelectionOptions.MinFileSize = 1500;
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
 
         [TestMethod]
-        public void Test_MaxFileSize()
+        public async Task Test_MaxFileSize()
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(true, ListOnlyMode);
             cmd.SelectionOptions.MaxFileSize = 1500;
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
 
         [TestMethod]
-        public void Test_FileInUse()
+        public async Task Test_FileInUse()
         {
             if (Test_Setup.IsRunningOnAppVeyor()) return;
 
@@ -111,7 +112,7 @@ namespace RoboSharp.UnitTests
             Console.WriteLine("Creating and locking file: " + fPath);
             var f = File.Open(fPath, FileMode.Create);    
                 Console.WriteLine("Running Test");
-                UnitTestResults = Test_Setup.RunTest(cmd).Result;
+                UnitTestResults = await Test_Setup.RunTest(cmd);
                 Console.WriteLine("Test Complete");
             Console.WriteLine("Releasing File: " + fPath);
             f.Close();
@@ -128,7 +129,7 @@ namespace RoboSharp.UnitTests
         }
 
         [TestMethod]
-        public void Test_ExcludeLastAccessDate()
+        public async Task Test_ExcludeLastAccessDate()
         {
             //Create the command and base values for the Expected Results
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
@@ -143,7 +144,7 @@ namespace RoboSharp.UnitTests
             cmd.SelectionOptions.MaxLastAccessDate = "19900101";
 
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
 
             //Evaluate the results and pass/Fail the test
             UnitTestResults.AssertTest();
@@ -158,12 +159,12 @@ namespace RoboSharp.UnitTests
         [DataRow(1)]
         [DataRow(8)]
         [TestMethod]
-        public void TestMultiThread(int threads)
+        public async Task TestMultiThread(int threads)
         {
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
             cmd.CopyOptions.MultiThreadedCopiesCount = threads;
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             
             // Ignore Directory Statistics during a multithread test, as they are not reported by robocopy
             List<string> Errors = new List<string>();
@@ -195,33 +196,33 @@ namespace RoboSharp.UnitTests
          */
 
         //INCLUDE
-        [TestMethod] public void Test_IncludeAttribReadOnly() => Test_Attributes(FileAttributes.ReadOnly, true);
-        [TestMethod] public void Test_IncludeAttribArchive() => Test_Attributes(FileAttributes.Archive, true);
-        [TestMethod] public void Test_IncludeAttribSystem() => Test_Attributes(FileAttributes.System, true);
-        [TestMethod] public void Test_IncludeAttribHidden() => Test_Attributes(FileAttributes.Hidden, true);
-        //[TestMethod] public void Test_IncludeAttribCompressed() => Test_Attributes(FileAttributes.Compressed, true);
-        [TestMethod] public void Test_IncludeAttribNotContentIndexed() => Test_Attributes(FileAttributes.NotContentIndexed, true);
-        //[TestMethod] public void Test_IncludeAttribEncrypted() => Test_Attributes(FileAttributes.Encrypted, true);
-        [TestMethod] public void Test_IncludeAttribTemporary() => Test_Attributes(FileAttributes.Temporary, true);
-        [TestMethod] public void Test_IncludeAttribOffline() => Test_Attributes(FileAttributes.Offline, true);
+        [TestMethod] public Task Test_IncludeAttribReadOnly() => Test_Attributes(FileAttributes.ReadOnly, true);
+        [TestMethod] public Task Test_IncludeAttribArchive() => Test_Attributes(FileAttributes.Archive, true);
+        [TestMethod] public Task Test_IncludeAttribSystem() => Test_Attributes(FileAttributes.System, true);
+        [TestMethod] public Task Test_IncludeAttribHidden() => Test_Attributes(FileAttributes.Hidden, true);
+        //[TestMethod] public Task Test_IncludeAttribCompressed() => Test_Attributes(FileAttributes.Compressed, true);
+        [TestMethod] public Task Test_IncludeAttribNotContentIndexed() => Test_Attributes(FileAttributes.NotContentIndexed, true);
+        //[TestMethod] public Task Test_IncludeAttribEncrypted() => Test_Attributes(FileAttributes.Encrypted, true);
+        [TestMethod] public Task Test_IncludeAttribTemporary() => Test_Attributes(FileAttributes.Temporary, true);
+        [TestMethod] public Task Test_IncludeAttribOffline() => Test_Attributes(FileAttributes.Offline, true);
         
 
         //EXCLUDE
-        [TestMethod] public void Test_ExcludeAttribReadOnly() => Test_Attributes(FileAttributes.ReadOnly, false);
-        [TestMethod] public void Test_ExcludeAttribArchive() => Test_Attributes(FileAttributes.Archive, false);
-        [TestMethod] public void Test_ExcludeAttribSystem() => Test_Attributes(FileAttributes.System, false);
-        [TestMethod] public void Test_ExcludeAttribHidden() => Test_Attributes(FileAttributes.Hidden, false);
-        //[TestMethod] public void Test_ExcludeAttribCompressed() => Test_Attributes(FileAttributes.Compressed, false);
-        [TestMethod] public void Test_ExcludeAttribNotContentIndexed() => Test_Attributes(FileAttributes.NotContentIndexed, false);
-        //[TestMethod] public void Test_ExcludeAttribEncrypted() => Test_Attributes(FileAttributes.Encrypted, false);
-        [TestMethod] public void Test_ExcludeAttribTemporary() => Test_Attributes(FileAttributes.Temporary, false);
-        [TestMethod] public void Test_ExcludeAttribOffline() => Test_Attributes(FileAttributes.Offline, false);
+        [TestMethod] public Task Test_ExcludeAttribReadOnly() => Test_Attributes(FileAttributes.ReadOnly, false);
+        [TestMethod] public Task Test_ExcludeAttribArchive() => Test_Attributes(FileAttributes.Archive, false);
+        [TestMethod] public Task Test_ExcludeAttribSystem() => Test_Attributes(FileAttributes.System, false);
+        [TestMethod] public Task Test_ExcludeAttribHidden() => Test_Attributes(FileAttributes.Hidden, false);
+        //[TestMethod] public Task Test_ExcludeAttribCompressed() => Test_Attributes(FileAttributes.Compressed, false);
+        [TestMethod] public Task Test_ExcludeAttribNotContentIndexed() => Test_Attributes(FileAttributes.NotContentIndexed, false);
+        //[TestMethod] public Task Test_ExcludeAttribEncrypted() => Test_Attributes(FileAttributes.Encrypted, false);
+        [TestMethod] public Task Test_ExcludeAttribTemporary() => Test_Attributes(FileAttributes.Temporary, false);
+        [TestMethod] public Task Test_ExcludeAttribOffline() => Test_Attributes(FileAttributes.Offline, false);
 
 
 #pragma warning disable IDE0059 // Unnecessary assignment of a value
         /// <param name="attributes"><inheritdoc cref="SelectionOptions.ConvertFileAttrToString(FileAttributes?)" path="*"/></param>
         /// <param name="Include">TRUE if setting to INCLUDE, False to EXCLUDE</param>
-        private void Test_Attributes(FileAttributes attributes, bool Include)
+        private async Task Test_Attributes(FileAttributes attributes, bool Include)
         {
             // Create the Command
             RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
@@ -261,7 +262,7 @@ namespace RoboSharp.UnitTests
             }
 
             Test_Setup.ClearOutTestDestination();
-            RoboSharpTestResults UnitTestResults = Test_Setup.RunTest(cmd).Result;
+            RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd);
             
             //Revert all modified files to their normal state
             File.SetAttributes(filePath, FileAttributes.Normal);    //Source File

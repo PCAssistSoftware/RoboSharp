@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using static RoboSharp.Extensions.Tests.AssertExtensions;
 
+#pragma warning disable CA1416 // Validate platform compatibility
+
 namespace RoboSharp.Extensions.Windows.UnitTests
 {
     [TestClass()]
@@ -40,6 +42,7 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         [TestMethod()]
         public async Task IFileCopierFactoryTests_CopyFileEx()
         {
+
             IFileCopierFactory factory = new CopyFileExFactory() { Options = CopyFileExOptions.NONE };
             if (VersionManager.IsPlatformWindows)
             {
@@ -356,3 +359,5 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         }
     }
 }
+
+#pragma warning restore CA1416 // Validate platform compatibility

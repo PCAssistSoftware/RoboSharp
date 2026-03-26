@@ -319,7 +319,7 @@ namespace RoboSharp.Extensions.Tests
         {
             string fileCopyToDest = copier.Destination.FullName + "_control";
 
-            string? sourceMD5 = null; string? destinationMD5 = null; string controlMD5 = null;
+            string sourceMD5 = null; string destinationMD5 = null; string controlMD5 = null;
 
             try
             {
