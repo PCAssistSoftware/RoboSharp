@@ -1,4 +1,4 @@
-﻿#if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER
 
 using RoboSharp.EventArgObjects;
 using RoboSharp.Extensions.Helpers;
@@ -293,12 +293,8 @@ namespace RoboSharp.Extensions
             bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
             bool purging = !SelectionOptions.ExcludeExtra && (CopyOptions.Purge || CopyOptions.Mirror);
             bool reportExtraFiles = (!SelectionOptions.ExcludeExtra || (purging && CopyOptions.Depth != 1) ) && (LoggingOptions.VerboseOutput || LoggingOptions.ReportExtraFiles);
-            
-            // !!!! -- TODO : FIX REPORTeXTRAdIRS -- THIS IS NOT WORKING YET ---
-            // Something to do with maxdepth == 1 & all other conditions...
-            bool reportExtraDirs = maxDepth != 1 && !(!purging && !(CopyOptions.IsRecursive()) && !LoggingOptions.ReportExtraFiles && !CopyOptions.HasDefaultFileFilter());
-            //reportExtraFiles || (CopyOptions.CopySubdirectories || CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.MoveFilesAndDirectories); 
-
+            bool reportExtraDirs = !SelectionOptions.ExcludeExtra;
+ 
             SemaphoreSlim multiThreadedController = new SemaphoreSlim(CopyOptions.MultiThreadedCopiesCount >= 128 ? 128 : CopyOptions.MultiThreadedCopiesCount <= 1 ? 1 : CopyOptions.MultiThreadedCopiesCount);
             Dictionary<string, ProcessedFileInfo> infoDict = new();
             ConcurrentDictionary<IFileCopier, Task> runningTasks = new();
@@ -353,81 +349,30 @@ namespace RoboSharp.Extensions
 
                     // ── Process Purge candidates (destination-only files) ────────────────────
                     // ── Perform this first to clear space and also reduce run-time (avoid evaluating files that are copied into destination)
-                    if (dirPair.Destination.Exists)
-                    {
-                        if (purging && dirPair.IsExtra())
-                        {
-                            dirPair.Destination.Delete(true);
-                            continue; // source does not exist -> move to next dirpair
-                        }
+                    // Detect Extra Directories (dest dirs not in source tree)
+if (dirPair.Destination.Exists)
+{
+    foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
+    {
+        if (infoDict.ContainsKey(child))
+            continue; // part of source tree, already handled
 
-                        // Report or Purge extra files
-                        await foreach (IFileCopier purgeCopier in CreatePurgeCandidates(dirPair, cancellationToken))
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
+        // This directory exists in dest but not source — it's Extra
+        if (reportExtraDirs || purging)
+        {
+            var extraInfo = new ProcessedFileInfo(child, FileClassType.NewDir, 
+                fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
+            resultsBuilder.AddDir(extraInfo);
+            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
+        }
 
-                            EvaluateFilePair(purgeCopier);
-                            ProcessedFileInfo purgeInfo = purgeCopier.ProcessedFileInfo;
+        if (purging)
+        {
+            PurgeExtraDirectory(child, resultsBuilder, cancellationToken);
+        }
+    }
+}
 
-                            if (purgeCopier.ShouldPurge)
-                            {
-                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
-
-                                try
-                                {
-                                    purgeCopier.Destination.Delete();
-                                    progressReporter.AddFileExtra(purgeInfo);
-                                    resultsBuilder.AddFilePurged(purgeInfo);
-                                }
-                                catch (OperationCanceledException)
-                                {
-                                    throw;
-                                }
-                                catch (Exception ex)
-                                {
-                                    resultsBuilder.AddFileFailed(purgeInfo);
-                                    OnCommandError?.Invoke(this, new CommandErrorEventArgs(ex.Message, ex));
-                                }
-                            }
-                            else
-                            {
-                                // Extra file is present but purge is disabled — treat as skipped/extra
-                                progressReporter.AddFileExtra(purgeInfo);
-                                resultsBuilder.AddFileExtra(purgeInfo);
-                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(purgeInfo));
-                            }
-                        }
-
-                        // Detect Extra Directories
-                        if (true || currentDepth <= maxDepth)
-                        {
-                            foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
-                            {
-                                // check if dictionary contains the key
-                                if (infoDict.ContainsKey(child))
-                                    continue;
-
-                                // not part of source tree:
-                                if (reportExtraDirs)
-                                {
-                                    var info = new ProcessedFileInfo(child, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
-                                    resultsBuilder.AddDir(info);
-                                }
-
-                                if (purging)
-                                {
-                                    try
-                                    {
-                                        Directory.Delete(child, true);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        OnCommandError?.Invoke(this, new CommandErrorEventArgs($"Unable to purge directory : {child}", e));
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     // ── Process Source files for copy/move ──────────────────────────────────────────────────
                     if (dirPair.Source.Exists)
@@ -551,42 +496,48 @@ namespace RoboSharp.Extensions
             }
         }
 
-        /// <summary> Processes an EXTRA directory tree from the destination, potentially purging it.</summary>
-        private void ProcessExtraDirectory(DirectoryPair pair, int currentDepth, ResultsBuilder resultsBuilder)
-        {
-            if (!pair.Destination.Exists) return;
-            bool shouldPurge = CopyOptions.Purge && this.ShouldPurge(pair);
+        /// <summary>
+/// Recursively reports and deletes an extra destination directory and all its contents.
+/// Mirrors RoboCopy's behaviour: files are counted as Extra/Purged before the directory is deleted.
+/// </summary>
+private void PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, CancellationToken cancellationToken)
+{
+    cancellationToken.ThrowIfCancellationRequested();
 
-            // This gets it to pass unit tests, but *feels* wrong
-            if (!shouldPurge && !CopyOptions.IsRecursive() && !LoggingOptions.ReportExtraFiles && !CopyOptions.HasDefaultFileFilter()) return;
+    // Report and count each file inside the extra directory before deleting
+    foreach (var file in Directory.EnumerateFiles(destDir, "*", SearchOption.TopDirectoryOnly))
+    {
+        var fileInfo = new FileInfo(file);
+        var rPath = Path.GetRelativePath(CopyOptions.Destination, file);
+        var pfi = new ProcessedFileInfo(rPath, FileClassType.NewDir,
+            fileClass: Configuration.LogParsing_ExtraDir, size: -1);
+        // Mark as extra/purged in results
+        resultsBuilder.AddFilePurged(pfi);
+        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(pfi));
+    }
 
-            if (pair.ProcessedFileInfo is null)
-                pair.ProcessedFileInfo = new ProcessedFileInfo(directory: pair.Destination, this, ProcessedDirectoryFlag.ExtraDir, size: -1);
+    // Recurse into subdirectories of this extra dir
+    foreach (var subDir in Directory.EnumerateDirectories(destDir, "*", SearchOption.TopDirectoryOnly))
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var extraInfo = new ProcessedFileInfo(subDir, FileClassType.NewDir,
+            fileClass: Configuration.LogParsing_ExtraDir, size: -1);
+        resultsBuilder.AddDir(extraInfo);
+        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
+        PurgeExtraDirectory(subDir, resultsBuilder, cancellationToken);
+    }
 
-            resultsBuilder.AddDir(pair.ProcessedFileInfo);
-            if (!shouldPurge) return;
+    // Now delete the whole tree
+    try
+    {
+        Directory.Delete(destDir, true);
+    }
+    catch (Exception e)
+    {
+        OnCommandError?.Invoke(this, new CommandErrorEventArgs($"Unable to purge directory: {destDir}", e));
+    }
+}
 
-            ////Process Files
-            //IEnumerable<FilePair> files = pair.DestinationFiles;
-            //foreach (var file in files)
-            //{
-            //    if (cancelRequest.IsCancellationRequested) break;
-            //    ProcessExtraFile(file);
-            //}
-
-            //// Dig into subdirectories
-            //if (PairEvaluator.CanDigDeeper(currentDepth))
-            //{
-            //    foreach (var dir in pair.ExtraDirectories)
-            //    {
-            //        if (cancelRequest.IsCancellationRequested) break;
-            //        ProcessExtraDirectory(dir, currentDepth + 1);
-            //    }
-            //}
-
-            // Delete the current directory
-
-        }
 
         /// <summary>
         /// Yields the root pair and (if recurse is true) all sub-directory pairs, mirroring Robocopy's directory tree walk.
