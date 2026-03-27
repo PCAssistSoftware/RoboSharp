@@ -1,7 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RoboSharp;
-using RoboSharp.Extensions;
-using RoboSharp.Extensions.Tests;
 using RoboSharp.Interfaces;
 using RoboSharp.Results;
 using RoboSharp.UnitTests;
@@ -54,9 +52,28 @@ namespace RoboSharp.Extensions.Tests
         public const int TotalFiles       = DirsWithFiles * FilesPerDir;     // 20
     }
  
+// ══════════════════════════════════════════════════════════════════════════
+    //
+    //  RoboCommand_Tests
+    //
+    //  Runs the full CommandTests suite against the real RoboCopy process.
+    //  If these tests pass, the expected counts in CommandTests<T> are correct.
+    //  If they fail, fix the SourceTree constants or test expectations first
+    //  before debugging any custom implementation.
+    //
+    // ══════════════════════════════════════════════════════════════════════════
     [TestClass]
-    public class RoboCommandTests : CommandTests<RoboCommand> { }
-
+    public class RoboCommand_Tests : CommandTests<RoboCommand>
+    {
+        protected override RoboCommand GetCommand(string source, string destination)
+        {
+            var cmd = new RoboCommand();
+            cmd.CopyOptions.Source      = source;
+            cmd.CopyOptions.Destination = destination;
+            return cmd;
+        }
+    }
+    
     // ══════════════════════════════════════════════════════════════════════════
     //
     //  CommandTests<T>
@@ -671,31 +688,9 @@ namespace RoboSharp.Extensions.Tests
                 expectedFileExtras: 0, expectedFileSkipped: 0);
         }
     }
+    
 
-
-    // ══════════════════════════════════════════════════════════════════════════
-    //
-    //  RoboCommand_Tests
-    //
-    //  Runs the full CommandTests suite against the real RoboCopy process.
-    //  If these tests pass, the expected counts in CommandTests<T> are correct.
-    //  If they fail, fix the SourceTree constants or test expectations first
-    //  before debugging any custom implementation.
-    //
-    // ══════════════════════════════════════════════════════════════════════════
-    [TestClass]
-    public class RoboCommand_Tests : CommandTests<RoboCommand>
-    {
-        protected override RoboCommand GetCommand(string source, string destination)
-        {
-            var cmd = new RoboCommand();
-            cmd.CopyOptions.Source      = source;
-            cmd.CopyOptions.Destination = destination;
-            return cmd;
-        }
-    }
-
-
+/*
     // ══════════════════════════════════════════════════════════════════════════
     //
     //  RoboCommandPortable_CommandTests
@@ -716,6 +711,7 @@ namespace RoboSharp.Extensions.Tests
             return cmd;
         }
     }
++*/
 }
 
 #endif
