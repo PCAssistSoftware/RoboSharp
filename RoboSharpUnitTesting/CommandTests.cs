@@ -65,12 +65,9 @@ namespace RoboSharp.Extensions.Tests
     [TestClass]
     public class RoboCommand_Tests : CommandTests<RoboCommand>
     {
-        protected override RoboCommand GetCommand(string source, string destination)
+        protected override RoboCommand GetCommand()
         {
-            var cmd = new RoboCommand();
-            cmd.CopyOptions.Source      = source;
-            cmd.CopyOptions.Destination = destination;
-            return cmd;
+            return new RoboCommand();
         }
     }
     
@@ -142,13 +139,15 @@ namespace RoboSharp.Extensions.Tests
         /// The base implementation uses <see cref="Activator.CreateInstance{T}"/> and
         /// wires Source + Destination on <see cref="IRoboCommand.CopyOptions"/>.
         /// </summary>
-        protected virtual T GetCommand(string source, string destination)
+        protected T GetCommand(string source, string destination)
         {
-            var cmd = Activator.CreateInstance<T>();
+            var cmd = GetCommand();
             cmd.CopyOptions.Source = source;
             cmd.CopyOptions.Destination = destination;
             return cmd;
         }
+        /// <inheritdoc cref="GetCommand(string,string)"/>
+        protected virtual T GetCommand() => Activator.CreateInstance<T>();
 
         // ── Run helper ────────────────────────────────────────────────────────
 
