@@ -11,6 +11,7 @@
         <IsPackable>false</IsPackable>
         <RootNamespace>RoboSharp.UnitTests</RootNamespace>
         <AssemblyName>RoboSharp.UnitTests</AssemblyName>
+		<LangVersion>latest</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -105,5 +106,11 @@
         <Content Include="TEST_FILES\STANDARD\SubFolder_2\4_Bytes.txt">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="TEST_FILES\STANDARD\301_Bytes.zip">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 </Project>

@@ -57,10 +57,6 @@ jobs:
     - name: Run RoboSharp.Extensions Tests
       run: dotnet test ./RoboSharp.Extensions.UnitTests/RoboSharp.Extensions.UnitTests.csproj --configuration Release --no-build
 
-      # Execute all unit tests in the solution
-    - name: Execute unit tests
-      run: dotnet test
-
     - name: Gather Artifacts
       run: |
         dotnet pack ./RoboSharp/RoboSharp.csproj --configuration Release --no-build --output ./artifacts
