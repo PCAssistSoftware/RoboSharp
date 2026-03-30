@@ -38,6 +38,17 @@ namespace RoboSharp.Extensions.Tests
         }
     }
 
+    
+    /// <summary>
+    /// <br/> Runs the full <see cref="CommandTests{T}"/> suite against <see cref="RoboCommandPortable"/>.
+    /// <br/> Failures here indicate bugs in the portable implementation, not in the test expectations (which are validated by <see cref="RoboCommand_Tests"/>).
+    /// </summary>
+    [TestClass]
+    public class RoboCommandPortable_CommandTests : CommandTests<RoboCommandPortable>
+    {
+        protected override RoboCommandPortable GetCommand() => new RoboCommandPortable(StreamedCopierFactory.DefaultFactory);
+    }
+
     /// <summary>
     /// Validate that the command works the same as robocopy
     /// </summary>
