@@ -254,12 +254,12 @@ namespace RoboSharp.UnitTests
             if (Include)
             {
                 cmd.SelectionOptions.SetIncludedAttributes(attributes);
-                expectedFileCounts.SetValues(12, 1, 0, 0, 0, 11);
+                expectedFileCounts.SetValues(12, 1, 0, 0, 0, 12);
             }
             else
             {
                 cmd.SelectionOptions.SetExcludedAttributes(attributes);
-                expectedFileCounts.SetValues(12, 11, 0, 0, 0, 1);
+                expectedFileCounts.SetValues(12, 12, 0, 0, 0, 1);
             }
 
             TestContext.CancellationToken.ThrowIfCancellationRequested();
