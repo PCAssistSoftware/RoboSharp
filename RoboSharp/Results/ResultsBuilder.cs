@@ -79,6 +79,12 @@ namespace RoboSharp.Results
                 _isLoggingHeader = _headerSepCount < 3;
                 _outputLines.Add(output);
                 _lastLine = output;
+                if (!_isLoggingHeader && !_enableFileLogging)
+                {
+                    _outputLines.Add("");
+                    _outputLines.Add($">> File & Directory logging have been disabled via {nameof(RoboSharp)}.{nameof(RoboSharp.RoboSharpConfiguration)}.{nameof(RoboSharp.RoboSharpConfiguration.EnableFileLogging)}");
+                    _outputLines.Add("");
+                }
                 return;
             }
 
