@@ -326,6 +326,22 @@ namespace RoboSharp.Results
             }
         }
 
+        /// <summary>
+        /// Adds 1 to the directories Extra stat.
+        /// <br/>Extra dirs are not added to the total.
+        /// </summary>
+        /// <param name="dir"></param>
+        public void AddDirExtra(ProcessedFileInfo dir)
+        {
+            lock (DirLock)
+            {
+                if (dir != CurrentDir)
+                {
+                    tmpDir.Extras++;
+                }
+            }
+        }
+
         #endregion
 
         #region < Calculate Files (Internal) >

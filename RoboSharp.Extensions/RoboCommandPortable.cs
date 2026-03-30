@@ -276,25 +276,22 @@ namespace RoboSharp.Extensions
         {
             // ── Infrastructure setup ──────────────────────────────────────────────────
 
-            
-            var progressReporter = new ProgressEstimator(this);  // live IStatistic feeds for the UI
             var resultsBuilder = new ResultsBuilder(this);  // tracks counts/bytes per category
 
             // Fire OnProgressEstimatorCreated so subscribers (e.g. a progress bar) can
             // attach to the estimator's IStatistic change events before work begins.
-            this.IProgressEstimator = progressReporter;
-            OnProgressEstimatorCreated?.Invoke(this, new ProgressEstimatorCreatedEventArgs(progressReporter));
+            this.IProgressEstimator = resultsBuilder.ProgressEstimator;
+            OnProgressEstimatorCreated?.Invoke(this, new ProgressEstimatorCreatedEventArgs(resultsBuilder.ProgressEstimator));
 
-            bool includeEmpty = this.CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror;
-            bool recurse = this.CopyOptions.CopySubdirectories || this.CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror;
-            int maxDepth = recurse ? (CopyOptions.Depth <= 0 ? int.MaxValue : CopyOptions.Depth) : 1;
-            var rootPair = new DirectoryPair(this.CopyOptions.Source, this.CopyOptions.Destination);
+            bool isRecursive = (CopyOptions.CopySubdirectories || CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror);
+            bool includeEmptyDirs = isRecursive && CopyOptions.Depth != 1;
             bool listOnly = LoggingOptions.ListOnly;
-            bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
             bool purging = !SelectionOptions.ExcludeExtra && (CopyOptions.Purge || CopyOptions.Mirror);
-            bool reportExtraFiles = (!SelectionOptions.ExcludeExtra || (purging && CopyOptions.Depth != 1) ) && (LoggingOptions.VerboseOutput || LoggingOptions.ReportExtraFiles);
-            bool reportExtraDirs = !SelectionOptions.ExcludeExtra;
- 
+            bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
+            int maxDepth = isRecursive ? (CopyOptions.Depth <= 0 ? int.MaxValue : CopyOptions.Depth) : 1;
+
+            var rootPair = new DirectoryPair(this.CopyOptions.Source, this.CopyOptions.Destination);
+
             SemaphoreSlim multiThreadedController = new SemaphoreSlim(CopyOptions.MultiThreadedCopiesCount >= 128 ? 128 : CopyOptions.MultiThreadedCopiesCount <= 1 ? 1 : CopyOptions.MultiThreadedCopiesCount);
             Dictionary<string, ProcessedFileInfo> infoDict = new();
             ConcurrentDictionary<IFileCopier, Task> runningTasks = new();
@@ -334,8 +331,6 @@ namespace RoboSharp.Extensions
                         EvaluateDirPair(dirPair);
                         infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
                     }
-
-                    progressReporter.AddDir(dirPair.ProcessedFileInfo);
                     if (dirPair == rootPair)
                     {
                         resultsBuilder.AddFirstDir(rootPair);
@@ -347,37 +342,31 @@ namespace RoboSharp.Extensions
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
 
 
-                    // ── Process Purge candidates (destination-only files) ────────────────────
-                    // ── Perform this first to clear space and also reduce run-time (avoid evaluating files that are copied into destination)
                     // Detect Extra Directories (dest dirs not in source tree)
-if (dirPair.Destination.Exists)
-{
-    foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
-    {
-        if (infoDict.ContainsKey(child))
-            continue; // part of source tree, already handled
+                    if (dirPair.Destination.Exists)
+                    {
+                        foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
+                        {
+                            if (infoDict.ContainsKey(child))
+                                continue; // part of source tree, already handled
 
-        // This directory exists in dest but not source — it's Extra
-        if (reportExtraDirs || purging)
-        {
-            var extraInfo = new ProcessedFileInfo(child, FileClassType.NewDir, 
-                fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
-            resultsBuilder.AddDir(extraInfo);
-            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
-        }
+                            // This directory exists in dest but not source — it's Extra
+                            var extraInfo = new ProcessedFileInfo(child, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
+                            resultsBuilder.AddDirExtra(extraInfo);
+                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
 
-        if (purging)
-        {
-            PurgeExtraDirectory(child, resultsBuilder, cancellationToken);
-        }
-    }
-}
+                            if (purging)
+                            {
+                                PurgeExtraDirectory(child, resultsBuilder, cancellationToken);
+                            }
+                        }
+                    }
 
 
                     // ── Process Source files for copy/move ──────────────────────────────────────────────────
                     if (dirPair.Source.Exists)
                     {
-                        if (includeEmpty && !listOnly)
+                        if (includeEmptyDirs && !listOnly)
                             dirPair.Destination.Create();
 
                         await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
@@ -394,7 +383,6 @@ if (dirPair.Destination.Exists)
                             if (!copier.ShouldCopy)
                             {
                                 // File was evaluated but not copied (skipped/extra/same/newer/older).
-                                progressReporter.AddFileSkipped(fileInfo);
                                 resultsBuilder.AddFileSkipped(fileInfo);
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
                                 continue;
@@ -402,7 +390,6 @@ if (dirPair.Destination.Exists)
                             else if (listOnly)
                             {
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                progressReporter.AddFileCopied(fileInfo);
                                 resultsBuilder.AddFileCopied(fileInfo);
                             }
                             else if (touchFiles)
@@ -411,7 +398,6 @@ if (dirPair.Destination.Exists)
                                 if (copier.Destination.Exists is false)
                                     copier.Destination.Create();
 
-                                progressReporter.AddFileCopied(fileInfo);
                                 resultsBuilder.AddFileCopied(fileInfo);
                             }
                             else
@@ -420,7 +406,7 @@ if (dirPair.Destination.Exists)
 
                                 // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                var task = PerformCopyOrMove(dirPair, copier, progressReporter, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
+                                var task = PerformCopyOrMove(dirPair, copier, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
 
                                 if (task.Status < TaskStatus.RanToCompletion)
                                     runningTasks[copier] = task;
@@ -450,8 +436,7 @@ if (dirPair.Destination.Exists)
 
         private async Task PerformCopyOrMove(
             DirectoryPair dirPair, 
-            IFileCopier copier, 
-            Results.ProgressEstimator progressReporter, 
+            IFileCopier copier,  
             ResultsBuilder resultsBuilder,
             SemaphoreSlim multiThreadedController,
             ConcurrentDictionary<IFileCopier, Task> runningTasks,
@@ -474,7 +459,6 @@ if (dirPair.Destination.Exists)
                     else
                         await copier.CopyAsync(true, cancellationToken).ConfigureAwait(false);
                     success = true;
-                    progressReporter.AddFileCopied(copier.ProcessedFileInfo);
                     resultsBuilder.AddFileCopied(copier.ProcessedFileInfo);
                 }
                 catch (OperationCanceledException)
@@ -540,7 +524,7 @@ private void PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, 
 
 
         /// <summary>
-        /// Yields the root pair and (if recurse is true) all sub-directory pairs, mirroring Robocopy's directory tree walk.
+        /// Yields the root pair and (if isRecursive is true) all sub-directory pairs, mirroring Robocopy's directory tree walk.
         /// <br/> Only yields items from the Source tree
         /// </summary>
         private async  IAsyncEnumerable<(DirectoryPair dirPair, int currentDepth)> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
