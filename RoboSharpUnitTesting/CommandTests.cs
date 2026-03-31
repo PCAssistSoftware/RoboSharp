@@ -1409,7 +1409,7 @@ namespace RoboSharp.UnitTests
                 expectedFileExtras: recurse ? nestDepth * 2 : 0,
                 expectedFileSkipped: 0);
 
-            Assert.IsFalse(Directory.Exists(Path.Combine(TempDest, "nested_0")), "Root of nested extra dir tree should not have been purged");
+            Assert.AreEqual(!recurse, Directory.Exists(Path.Combine(TempDest, "nested_0")), "\n >> Root of nested extra dir tree should not have been purged");
             string err = recurse ? "\n >> Recursion purge should delete all extras." : "\n >> Purging without Recursion only deletes file on root.";
             Assert.AreEqual(recurse ? 0 : 3, Directory.GetFiles(cmd.CopyOptions.Destination, "file_*.zip", SearchOption.AllDirectories).Length, err);
 
