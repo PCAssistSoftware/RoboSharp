@@ -171,8 +171,9 @@ namespace RoboSharp.Extensions.Helpers
         public virtual void AddFileExtra(ProcessedFileInfo file)
         {
             ProgressEstimator.AddFileExtra(file);
-            if (Command.LoggingOptions.VerboseOutput || Command.LoggingOptions.ReportExtraFiles)
-                LogFileInfo(file);
+            if (Command.LoggingOptions.NoFileList || (Command.SelectionOptions.ExcludeExtra && !Command.LoggingOptions.VerboseOutput)) 
+                return;
+            LogFileInfo(file);
         }
 
         /// <summary>
@@ -252,8 +253,8 @@ namespace RoboSharp.Extensions.Helpers
         private void LogDir(ProcessedFileInfo dir)
         {
             //Check to log the directory listing
-            if (!Command.LoggingOptions.NoDirectoryList)
-                WriteToLogs(dir.ToString(Command.LoggingOptions));
+            if (Command.LoggingOptions.NoDirectoryList) return;
+            WriteToLogs(dir.ToString(Command.LoggingOptions));
         }
 
         /// <summary>
@@ -302,6 +303,25 @@ namespace RoboSharp.Extensions.Helpers
             ProgressEstimator.AddDirExtra(dir);
             if (Command.LoggingOptions.VerboseOutput || Command.LoggingOptions.ReportExtraFiles)
                 LogDir(dir);
+        }
+
+        /// <summary>
+        /// Logs the mismatch, but does not add it to the statistic.
+        /// </summary>
+        public void ReportMismatch(ProcessedFileInfo dirOrFile)
+        {
+            if (dirOrFile is null || dirOrFile.FileClassType == FileClassType.SystemMessage)
+                return;
+            if (dirOrFile.FileClassType == FileClassType.File)
+            {
+                LogFileInfo(dirOrFile);
+                return;
+            }
+            if (dirOrFile.FileClassType == FileClassType.NewDir)
+            {
+                LogDir(dirOrFile);
+                return;
+            }
         }
 
         #endregion

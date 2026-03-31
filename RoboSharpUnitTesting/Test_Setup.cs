@@ -59,6 +59,22 @@ namespace RoboSharp.UnitTests
             return cmd;
         }
 
+        /// <summary>
+        /// Gets a new path to a directory (not yet created) within the temp folder
+        /// </summary>
+        public static string GetNewTempPath()
+        {
+            return Path.Combine(Path.GetTempPath(), "RoboSharp.UnitTesting", Guid.NewGuid().ToString("N"));
+        }
+        /// <summary>
+        /// Gets a new directory and some child path
+        /// </summary>
+        public static (string dir, string file) GetNewTempPathWithChild()
+        {
+            string dir = GetNewTempPath();
+            return (dir, Path.Combine(dir, Path.GetRandomFileName()));
+        }
+
         public static async Task<RoboSharpTestResults> RunTest(IRoboCommand cmd, CancellationToken token)
         {
             IProgressEstimator prog = null;

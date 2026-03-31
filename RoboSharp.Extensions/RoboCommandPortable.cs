@@ -1,5 +1,6 @@
 #if NET6_0_OR_GREATER
 
+using Microsoft.VisualBasic;
 using RoboSharp.EventArgObjects;
 using RoboSharp.Extensions.Helpers;
 using RoboSharp.Extensions.Options;
@@ -9,9 +10,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -220,9 +224,6 @@ namespace RoboSharp.Extensions
         private DirectoryRegex[] GetDirectoryRegexes() => directoryRegexes ??= SelectionOptions.GetExcludedDirectoryRegex();
         private DirectoryRegex[]? directoryRegexes;
 
-        private IFilePairExtensions.EvaluationResult EvaluateFilePair(IFileCopier pair) => pair.EvaluateCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex());
-        private void EvaluateDirPair(DirectoryPair pair) => pair.EvaluateCommandOptions(this, GetDirectoryRegexes());
-
         private void RaiseProgressUpdated(object? sender, CopyProgressEventArgs e) => OnCopyProgressChanged?.Invoke(this, e);
 
         private async Task Run(string domain, string username, string password, Action? preRunAction = null, Action? postRunAction = null)
@@ -283,11 +284,11 @@ namespace RoboSharp.Extensions
             this.IProgressEstimator = resultsBuilder.ProgressEstimator;
             OnProgressEstimatorCreated?.Invoke(this, new ProgressEstimatorCreatedEventArgs(resultsBuilder.ProgressEstimator));
 
-            bool isRecursive = (CopyOptions.CopySubdirectories || CopyOptions.CopySubdirectoriesIncludingEmpty || CopyOptions.Mirror);
-            bool includeEmptyDirs = isRecursive && CopyOptions.Depth != 1;
+            bool isRecursive = this.CopyOptions.IsRecursive();
+            bool includeEmptyDirs = this.CopyOptions.IsIncludingEmptyDirectories();
             bool listOnly = LoggingOptions.ListOnly;
             bool purging = !SelectionOptions.ExcludeExtra && (CopyOptions.Purge || CopyOptions.Mirror);
-            bool touchFiles = CopyOptions.CreateDirectoryAndFileTree;
+            bool touchFiles = CopyOptions.CreateDirectoryAndFileTree && !CopyOptions.RemoveFileInformation;
             int maxDepth = isRecursive ? (CopyOptions.Depth <= 0 ? int.MaxValue : CopyOptions.Depth) : 1;
 
             var rootPair = new DirectoryPair(this.CopyOptions.Source, this.CopyOptions.Destination);
@@ -295,91 +296,120 @@ namespace RoboSharp.Extensions
             SemaphoreSlim multiThreadedController = new SemaphoreSlim(CopyOptions.MultiThreadedCopiesCount >= 128 ? 128 : CopyOptions.MultiThreadedCopiesCount <= 1 ? 1 : CopyOptions.MultiThreadedCopiesCount);
             Dictionary<string, ProcessedFileInfo> infoDict = new();
             ConcurrentDictionary<IFileCopier, Task> runningTasks = new();
-
+            
+            HashSet<string> destinationDirs = new HashSet<string>();
+            HashSet<string> destinationFiles = new HashSet<string>();
+            HashSet<string> sourceFiles = new HashSet<string>();
+            
             try
             {
-
-                // ── Pass 1: pre-scan to seed ProgressEstimator ────────────────────────────
-                // Robocopy reports totals before starting transfers; we replicate that here
-                // so ProgressEstimator can give accurate percentage estimates from the start.
-
-                await foreach ((DirectoryPair dirPair, _) in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
-                {
-                    // Tell the estimator a directory exists on the source side
-                    EvaluateDirPair(dirPair);
-                    //if (depth > maxDepth)
-                    //    dirPair.ProcessedFileInfo.SetDirectoryClass(ProcessedDirectoryFlag.ExtraDir, Configuration);
-                    
-                    infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
-                    await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
-                    {
-                        dirPair.ProcessedFileInfo.Size++;
-                    }
-                }
-
-                // ── Pass 2: process each directory ───────────────────────────────────────
-                await foreach ((DirectoryPair dirPair, int currentDepth) in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
+                // ── process each directory ───────────────────────────────────────
+                await foreach ((DirectoryPair dirPair, HashSet<string> sourceDirs, int currentDepth) in EnumerateDirectoryPairsAsync(rootPair, 0, maxDepth, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (infoDict.TryGetValue(dirPair.Destination.FullName, out var pInfo))
+                    bool shouldProcessDir = dirPair.EvaluateCommandOptions(this, GetDirectoryRegexes());
+
+                    if (!shouldProcessDir)
                     {
-                        dirPair.ProcessedFileInfo = pInfo;
+                        resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
+                        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
+                        continue;
                     }
-                    else
-                    {
-                        EvaluateDirPair(dirPair);
-                        infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
-                    }
+
+                    await Task.WhenAll(
+                        Task.Run(() => PopulateSourceFiles(sourceFiles, dirPair.Source), cancellationToken),
+                        Task.Run(() => PopulateDestinationChidren(destinationFiles, destinationDirs, dirPair.Destination), cancellationToken)
+                        );
+
+                    dirPair.ProcessedFileInfo.Size = sourceFiles.Count;
+                    infoDict[dirPair.Destination.FullName] = dirPair.ProcessedFileInfo;
+
                     if (dirPair == rootPair)
                     {
                         resultsBuilder.AddFirstDir(rootPair);
                     }
                     else
-                    { 
+                    {
                         resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
                     }
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
+                    
+                    // process extra files
+                    ProcessedFileInfo? pfInfo;
+                    bool misMatch = false;
+                    foreach (var name in destinationFiles)
+                    {
+                        // dont report as extra if was found in source pairs
+                        if (sourceFiles.Contains(name)) 
+                            continue;
 
+                        misMatch = sourceDirs.Contains(name);
+
+                        var finfo = new FileInfo(Path.Combine(dirPair.Destination.FullName, name));
+                        pfInfo = new ProcessedFileInfo(finfo, this, status: misMatch ? ProcessedFileFlag.MisMatch : ProcessedFileFlag.ExtraFile);
+
+                        if (misMatch && !purging)
+                            resultsBuilder.ReportMismatch(pfInfo);
+                        else
+                            resultsBuilder.AddFileExtra(pfInfo);
+
+                        if (purging)
+                            finfo.Delete();
+                    }
 
                     // Detect Extra Directories (dest dirs not in source tree)
-                    if (dirPair.Destination.Exists)
+                    foreach(var name in destinationDirs)
                     {
-                        foreach (var child in Directory.EnumerateDirectories(dirPair.Destination.FullName, "*", SearchOption.TopDirectoryOnly))
+                        if (sourceDirs.Contains(name)) 
+                            continue;
+
+                        string fullPath = Path.Combine(dirPair.Destination.FullName, name);
+                        pfInfo = new ProcessedFileInfo(fullPath, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
+
+                        if (misMatch = sourceFiles.Contains(name))
                         {
-                            if (infoDict.ContainsKey(child))
-                                continue; // part of source tree, already handled
+                            pfInfo.SetDirectoryClass(ProcessedDirectoryFlag.MisMatch, Configuration);
+                            resultsBuilder.ReportMismatch(pfInfo);
+                        }
+                        else
+                        {
+                            resultsBuilder.AddDirExtra(pfInfo);
+                        }
 
-                            // This directory exists in dest but not source — it's Extra
-                            var extraInfo = new ProcessedFileInfo(child, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, purging ? -1 : 0);
-                            resultsBuilder.AddDirExtra(extraInfo);
-                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
-
-                            if (purging)
-                            {
-                                PurgeExtraDirectory(child, resultsBuilder, cancellationToken);
-                            }
+                        if (purging)
+                        {   
+                            PurgeExtraDirectory(fullPath, resultsBuilder, cancellationToken);
                         }
                     }
 
+                    pfInfo = null;
+                    misMatch = false;
 
                     // ── Process Source files for copy/move ──────────────────────────────────────────────────
-                    if (dirPair.Source.Exists)
+                    if (currentDepth < maxDepth && dirPair.Source.Exists)
                     {
-                        if (includeEmptyDirs && !listOnly)
+                        if (!listOnly && (includeEmptyDirs || dirPair.ProcessedFileInfo.Size > 0))
                             dirPair.Destination.Create();
 
-                        await foreach (IFileCopier copier in CreateFileCopiers(dirPair, cancellationToken))
+                        await foreach (IFileCopier copier in CreateFileCopiers(sourceFiles, dirPair, cancellationToken))
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
                             // Evaluate populates copier.ProcessedFileInfo (FileClass, Size, Name)
                             // AND sets ShouldCopy / ShouldPurge based on this IRoboCommand's options.
-                            if (EvaluateFilePair(copier) == IFilePairExtensions.EvaluationResult.SkippedByFilter)
+                            if (copier.EvaluateCommandOptions(this, GetFileFilterRegex(), GetFileExclusionRegex()) == IFilePairExtensions.EvaluationResult.SkippedByFilter)
                                 continue;
 
                             ProcessedFileInfo fileInfo = copier.ProcessedFileInfo;
-
+                            
+                            if (fileInfo.GetProcessedFileFlag() == ProcessedFileFlag.MisMatch)
+                            {
+                                // File was evaluated but not copied (skipped/extra/same/newer/older).
+                                resultsBuilder.AddFile(fileInfo);
+                                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                                continue;
+                            }
                             if (!copier.ShouldCopy)
                             {
                                 // File was evaluated but not copied (skipped/extra/same/newer/older).
@@ -387,33 +417,33 @@ namespace RoboSharp.Extensions
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
                                 continue;
                             }
-                            else if (listOnly)
+                            if (listOnly)
                             {
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
                                 resultsBuilder.AddFileCopied(fileInfo);
+                                continue;
                             }
-                            else if (touchFiles)
+                            if (touchFiles)
                             {
                                 dirPair.Destination.Create();
                                 if (copier.Destination.Exists is false)
                                     copier.Destination.Create();
 
-                                resultsBuilder.AddFileCopied(fileInfo);
-                            }
-                            else
-                            {
-                                await multiThreadedController.WaitAsync(cancellationToken);
-
-                                // Announce the file before the transfer (mirrors Robocopy's pre-copy log line)
                                 OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
-                                var task = PerformCopyOrMove(dirPair, copier, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
-
-                                if (task.Status < TaskStatus.RanToCompletion)
-                                    runningTasks[copier] = task;
-                                else
-                                    await task; // acknowledge completion
+                                continue;
                             }
+
+                            // else -> perform copy
+                            await multiThreadedController.WaitAsync(cancellationToken);
+                            OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(fileInfo));
+                            var task = PerformCopyOrMove(dirPair, copier, resultsBuilder, multiThreadedController, runningTasks, cancellationToken);
+
+                            if (task.Status < TaskStatus.RanToCompletion)
+                                runningTasks[copier] = task;
+                            else
+                                await task; // acknowledge completion
                         }
+
                     }
                 }
 
@@ -433,6 +463,42 @@ namespace RoboSharp.Extensions
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────────
+        private static bool MatchesFileFilters(Regex[] filters, string filePath)
+        {
+            return filters.Length == 0 || filters.Any(r => r.IsMatch(filePath));
+        }
+
+        private void PopulateDestinationChidren(HashSet<string> fileSet, HashSet<string> dirSet, DirectoryInfo root)
+        {
+            var fileFilters = GetFileFilterRegex();
+            var dirExclusions = GetDirectoryRegexes();
+
+            fileSet.Clear();
+            dirSet.Clear();
+            if (root.Exists == false) return;
+            foreach (var child in root.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
+            {
+                if (LoggingOptions.ReportExtraFiles || MatchesFileFilters(fileFilters, child.FullName))
+                    fileSet.Add(child.Name);
+            }
+            
+            foreach (var child in root.EnumerateDirectories("*", SearchOption.TopDirectoryOnly))
+            {
+                if (LoggingOptions.ReportExtraFiles  ||  (dirExclusions.None(r => r.ShouldExcludeDirectory(child.FullName)) && MatchesFileFilters(fileFilters, child.FullName)) )
+                    dirSet.Add(child.Name);
+            }
+        }
+        private void PopulateSourceFiles(HashSet<string> fileSet, DirectoryInfo root)
+        {
+            var fileFilters = GetFileFilterRegex();
+            fileSet.Clear();
+            foreach (var child in root.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
+            {
+                if (MatchesFileFilters(fileFilters, child.FullName))
+                    fileSet.Add(child.Name);
+            }
+        }
+
 
         private async Task PerformCopyOrMove(
             DirectoryPair dirPair, 
@@ -442,6 +508,9 @@ namespace RoboSharp.Extensions
             ConcurrentDictionary<IFileCopier, Task> runningTasks,
             CancellationToken cancellationToken)
         {
+            if (CopyOptions.RemoveFileInformation) // [ /NOCOPY ]
+                return;
+
             bool success = false;
             int tries = 0;
             int maxTries = RetryOptions.RetryCount <= 1 ? 1 : RetryOptions.RetryCount;
@@ -449,15 +518,19 @@ namespace RoboSharp.Extensions
 
             while (success == false && tries < maxTries)
             {
+                var attr = copier.Source.Attributes;
+                var dt = copier.Source.LastWriteTimeUtc;
+                
                 tries++;
                 try
                 {
                     Directory.CreateDirectory(dirPair.Destination.FullName);
                     copier.ProgressUpdated += RaiseProgressUpdated;
                     if (CopyOptions.MoveFiles || CopyOptions.MoveFilesAndDirectories)
-                        await copier.MoveAsync(true, cancellationToken).ConfigureAwait(false);
-                    else
-                        await copier.CopyAsync(true, cancellationToken).ConfigureAwait(false);
+                            await copier.MoveAsync(true, cancellationToken).ConfigureAwait(false);
+                        else
+                            await copier.CopyAsync(true, cancellationToken).ConfigureAwait(false);
+                        ApplyAttributes(copier.Destination.FullName, attr, dt);
                     success = true;
                     resultsBuilder.AddFileCopied(copier.ProcessedFileInfo);
                 }
@@ -467,7 +540,10 @@ namespace RoboSharp.Extensions
                 }
                 catch (Exception ex) when (success == false) // don't catch errors from the progress reporter or results builder.
                 {
-                    resultsBuilder.AddFileFailed(copier.ProcessedFileInfo);
+                    if (tries >= maxTries)
+                    {
+                        resultsBuilder.AddFileFailed(copier.ProcessedFileInfo);
+                    }
                     OnError?.Invoke(this, new ErrorEventArgs(ex, copier.Destination.FullName, DateTime.Now));
                     await Task.Delay(retryWaitTime, cancellationToken).ConfigureAwait(false);
                 }
@@ -480,66 +556,45 @@ namespace RoboSharp.Extensions
             }
         }
 
-        /// <summary>
-/// Recursively reports and deletes an extra destination directory and all its contents.
-/// Mirrors RoboCopy's behaviour: files are counted as Extra/Purged before the directory is deleted.
-/// </summary>
-private void PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, CancellationToken cancellationToken)
-{
-    cancellationToken.ThrowIfCancellationRequested();
+        private void ApplyAttributes(string destinationFile, FileAttributes sourceAttributes, DateTime sourceLastWriteTime )
+        {
+            bool d = CopyOptions.CopyAll || CopyOptions.CopyFilesWithSecurity || CopyOptions.CopyFlags.Contains('d', StringComparison.InvariantCultureIgnoreCase);
+            bool a = CopyOptions.CopyAll || CopyOptions.CopyFilesWithSecurity || CopyOptions.CopyFlags.Contains('a', StringComparison.InvariantCultureIgnoreCase);
+            bool t = d || CopyOptions.CopyAll || CopyOptions.CopyFilesWithSecurity || CopyOptions.CopyFlags.Contains('t', StringComparison.InvariantCultureIgnoreCase);
+            //bool s = CopyOptions.CopyAll || CopyOptions.CopyFlags.Contains('s', StringComparison.InvariantCultureIgnoreCase);
+            //bool o = CopyOptions.CopyAll || CopyOptions.CopyFlags.Contains('o', StringComparison.InvariantCultureIgnoreCase);
+            //bool u = CopyOptions.CopyAll || CopyOptions.CopyFlags.Contains('u', StringComparison.InvariantCultureIgnoreCase);
 
-    // Report and count each file inside the extra directory before deleting
-    foreach (var file in Directory.EnumerateFiles(destDir, "*", SearchOption.TopDirectoryOnly))
-    {
-        var fileInfo = new FileInfo(file);
-        var rPath = Path.GetRelativePath(CopyOptions.Destination, file);
-        var pfi = new ProcessedFileInfo(rPath, FileClassType.NewDir,
-            fileClass: Configuration.LogParsing_ExtraDir, size: -1);
-        // Mark as extra/purged in results
-        resultsBuilder.AddFilePurged(pfi);
-        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(pfi));
-    }
+            var attributeToRemove = CopyOptions.GetRemoveAttributes() ?? FileAttributes.None;
+            var attributesToAdd = CopyOptions.GetAddAttributes() ?? FileAttributes.None;
+            var fAttributes = (File.GetAttributes(destinationFile) | attributesToAdd);
+            if (a)
+                fAttributes |= sourceAttributes;
+            File.SetAttributes(destinationFile, fAttributes & ~attributeToRemove);
+                
+            if (t)
+                File.SetLastWriteTimeUtc(destinationFile, sourceLastWriteTime);
 
-    // Recurse into subdirectories of this extra dir
-    foreach (var subDir in Directory.EnumerateDirectories(destDir, "*", SearchOption.TopDirectoryOnly))
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var extraInfo = new ProcessedFileInfo(subDir, FileClassType.NewDir,
-            fileClass: Configuration.LogParsing_ExtraDir, size: -1);
-        resultsBuilder.AddDir(extraInfo);
-        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
-        PurgeExtraDirectory(subDir, resultsBuilder, cancellationToken);
-    }
-
-    // Now delete the whole tree
-    try
-    {
-        Directory.Delete(destDir, true);
-    }
-    catch (Exception e)
-    {
-        OnCommandError?.Invoke(this, new CommandErrorEventArgs($"Unable to purge directory: {destDir}", e));
-    }
-}
-
+        }
 
         /// <summary>
         /// Yields the root pair and (if isRecursive is true) all sub-directory pairs, mirroring Robocopy's directory tree walk.
         /// <br/> Only yields items from the Source tree
         /// </summary>
-        private async  IAsyncEnumerable<(DirectoryPair dirPair, int currentDepth)> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
+        private async  IAsyncEnumerable<(DirectoryPair dirPair, HashSet<string> subDirNames, int currentDepth)> EnumerateDirectoryPairsAsync(DirectoryPair root, int currentDepth, int maxDepth, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            yield return (root, currentDepth);
+            var subDirs = await Task.Run(() =>
+            {
+                var children = Directory.EnumerateDirectories(root.Source.FullName, "*", SearchOption.TopDirectoryOnly).ToArray();
+                var set = children.Select(Path.GetFileName).ToHashSet();
+                return (children, set);
+            }, cancellationToken);
+            yield return (root, subDirs.set, currentDepth);
 
-            if (currentDepth >= maxDepth)
+            if (currentDepth >= maxDepth -1)
                 yield break;
 
-            // Offload the synchronous Directory.EnumerateDirectories call onto the thread pool
-            // so the caller's await loop stays non-blocking.
-            IEnumerable<string> subDirs = await Task.Run(() => Directory.EnumerateDirectories(root.Source.FullName, "*", SearchOption.TopDirectoryOnly), cancellationToken)
-                .ConfigureAwait(false);
-
-            foreach (string sourceSubDir in subDirs)
+            foreach (string sourceSubDir in subDirs.children)
             {
                 while (IsPaused && !cancellationToken.IsCancellationRequested)
                     await Task.Delay(50, cancellationToken);
@@ -565,12 +620,9 @@ private void PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, 
         /// The factory decides the copier implementation; we just enumerate source files
         /// and hand each <see cref="FileInfo"/> pair to the factory.
         /// </summary>
-        private async IAsyncEnumerable<IFileCopier> CreateFileCopiers(DirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
+        private async IAsyncEnumerable<IFileCopier> CreateFileCopiers(HashSet<string> fileNames, DirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            IEnumerable<FileInfo> sourceFiles = await Task.Run(() => dirPair.Source.EnumerateFiles("*", SearchOption.TopDirectoryOnly), cancellationToken)
-                .ConfigureAwait(false);
-
-            foreach (FileInfo sourceFile in sourceFiles)
+            foreach (var name in fileNames)
             {
                 while (IsPaused && !cancellationToken.IsCancellationRequested)
                     await Task.Delay(50, cancellationToken);
@@ -578,41 +630,78 @@ private void PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, 
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Map to the corresponding destination FileInfo
-                string destPath = Path.Combine(dirPair.Destination.FullName, sourceFile.Name);
-                var destFile = new FileInfo(destPath);
+                string destPath = Path.Combine(dirPair.Destination.FullName, name);
+                string sourcePath = Path.Combine(dirPair.Source.FullName, name);
 
-                yield return copierFactory.Create(sourceFile, destFile, dirPair);
+                yield return copierFactory.Create(new FileInfo(sourcePath), new FileInfo(destPath), dirPair);
             }
         }
 
         /// <summary>
-        /// Creates purge-candidate <see cref="IFileCopier"/> instances for files that
-        /// exist in the destination but not the source (i.e. "extra" files).
+        /// Recursively reports and deletes an extra destination directory and all its contents.
+        /// Mirrors RoboCopy's behaviour: files are counted as Extra/Purged before the directory is deleted.
         /// </summary>
-        private async IAsyncEnumerable<IFileCopier> CreatePurgeCandidates(DirectoryPair dirPair, [EnumeratorCancellation] CancellationToken cancellationToken)
+        /// <returns>true is purged, otherwise false</returns>
+        private bool PurgeExtraDirectory(string destDir, ResultsBuilder resultsBuilder, CancellationToken cancellationToken)
         {
-            if (!Directory.Exists(dirPair.Destination.FullName))
-                yield break;
+            cancellationToken.ThrowIfCancellationRequested();
 
-            IEnumerable<FileInfo> destFiles = await Task.Run(() => dirPair.Destination.EnumerateFiles("*", SearchOption.TopDirectoryOnly), cancellationToken)
-                .ConfigureAwait(false);
+            var fileInclusions = GetFileExclusionRegex();
+            var fileExclusions = GetFileExclusionRegex();
+            var dirExclusions = GetDirectoryRegexes();
 
-            foreach (FileInfo destFile in destFiles)
+            bool success = true;
+
+            // Report and count each file inside the extra directory before deleting
+            foreach (var file in Directory.EnumerateFiles(destDir, "*", SearchOption.TopDirectoryOnly))
             {
-                while (IsPaused && !cancellationToken.IsCancellationRequested)
-                    await Task.Delay(50, cancellationToken);
-
-                cancellationToken.ThrowIfCancellationRequested();
-
-                string sourcePath = Path.Combine(dirPair.Source.FullName, destFile.Name);
-
-                if (File.Exists(sourcePath))
+                if (fileExclusions.Any(r => r.IsMatch(file)))
+                {
+                    success = false;
                     continue;
-
-                var sourceFile = new FileInfo(sourcePath);
-                yield return copierFactory.Create(sourceFile, destFile, dirPair);
+                }
+                    
+                if (MatchesFileFilters(fileInclusions, file))
+                {
+                    var fileInfo = new FileInfo(file);
+                    var rPath = Path.GetRelativePath(CopyOptions.Destination, file);
+                    var pfi = new ProcessedFileInfo(rPath, FileClassType.File, fileClass: Configuration.LogParsing_ExtraFile, size: -fileInfo.Length);
+                    // Mark as extra/purged in results
+                    resultsBuilder.AddFilePurged(pfi);
+                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(pfi));
+                    continue;
+                }
+                success = false;
             }
+
+            
+
+            // Recurse into subdirectories of this extra dir
+            foreach (var subDir in Directory.EnumerateDirectories(destDir, "*", SearchOption.TopDirectoryOnly).Where(path => dirExclusions.None(r => r.ShouldExcludeDirectory(path))))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var extraInfo = new ProcessedFileInfo(subDir, FileClassType.NewDir, fileClass: Configuration.LogParsing_ExtraDir, size: -1);
+                resultsBuilder.AddDir(extraInfo);
+                OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(extraInfo));
+                success &= PurgeExtraDirectory(subDir, resultsBuilder, cancellationToken);
+            }
+
+            // Now delete the whole tree
+            if (success)
+            {
+                try
+                {
+                    Directory.Delete(destDir, success);
+                }
+                catch (Exception e)
+                {
+                    OnCommandError?.Invoke(this, new CommandErrorEventArgs($"Unable to purge directory: {destDir}", e));
+                    return false;
+                }
+            }
+            return success;
         }
+
     }
 }
 #endif

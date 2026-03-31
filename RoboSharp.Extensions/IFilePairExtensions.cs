@@ -48,6 +48,12 @@ namespace RoboSharp.Extensions
             pair.ShouldCopy = false;
             pair.ShouldPurge = false;
 
+            if (IDirectoryPairExtensions.IsMismatch(pair.Source, pair.Destination))
+            {
+                pair.ProcessedFileInfo = new ProcessedFileInfo(pair.Source, command, ProcessedFileFlag.MisMatch);
+                return EvaluationResult.Excluded;
+            }
+
             // Extra
             if (pair.IsExtra())
             {
@@ -134,16 +140,33 @@ namespace RoboSharp.Extensions
 
             if (pair.IsSameDate())
             {
-                pInfo.SetFileClass(ProcessedFileFlag.SameFile, command.Configuration);
-                pair.ShouldCopy = command.SelectionOptions.IncludeSame;
+                if (pair.Source.Attributes != pair.Destination.Attributes)
+                {
+                    pInfo.SetFileClass(ProcessedFileFlag.TweakedInclusion, command.Configuration);
+                    pair.ShouldCopy = command.SelectionOptions.IncludeTweaked;
+                }
+                else if (pair.Source.Length != pair.Destination.Length)
+                {
+                    pInfo.SetFileClass(ProcessedFileFlag.ChangedExclusion, command.Configuration);
+                    pair.ShouldCopy = !sOptions.ExcludeChanged;
+                }
+                else
+                {
+                    pInfo.SetFileClass(ProcessedFileFlag.SameFile, command.Configuration);
+                    pair.ShouldCopy = command.SelectionOptions.IncludeSame;
+                }
                 return pair.ShouldCopy ? EvaluationResult.Included : EvaluationResult.Excluded;
             }
 
-            pair.ShouldCopy = true;
+            // tweaked
+
             ProcessedFileFlag flag = pair.IsLonely() ? ProcessedFileFlag.NewFile
                 : pair.IsSourceNewer() ? ProcessedFileFlag.NewerFile
                 : pair.IsDestinationNewer() ? ProcessedFileFlag.OlderFile
-                : pair.IsSameDate() ? ProcessedFileFlag.SameFile : ProcessedFileFlag.TweakedInclusion;
+                : ProcessedFileFlag.None;
+
+            pair.ShouldCopy = flag != ProcessedFileFlag.None;
+
 
             pInfo.SetFileClass(flag, command.Configuration);
             return EvaluationResult.Included;
@@ -304,7 +327,7 @@ namespace RoboSharp.Extensions
             if (source is null) throw new ArgumentNullException(nameof(source));
             if (destination is null) throw new ArgumentNullException(nameof(destination));
             if (destination.Exists && source.Exists)
-                return source.LastWriteTime == destination.LastWriteTime;
+                return source.LastWriteTimeUtc == destination.LastWriteTimeUtc;
             else
                 return false;
         }

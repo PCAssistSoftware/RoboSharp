@@ -301,15 +301,15 @@ namespace RoboSharp
         /// <summary>
         /// This property should be set to a string consisting of all the flags to include (eg. DAT; DATSOU)
         /// Specifies the file properties to be copied. The following are the valid values for this option:
-        ///D Data
-        ///A Attributes
-        ///T Time stamps
-        ///X Skip alt data streams
-        ///S NTFS access control list (ACL)
-        ///O Owner information
-        ///U Auditing information
-        ///The default value for copyflags is DAT (data, attributes, and time stamps).
-        ///[/COPY:copyflags]
+        /// <br/>[/COPY:copyflags]
+        /// <para/> The default value for copyflags is DAT (data, attributes, and time stamps).
+        /// <br/> D Data
+        /// <br/> A Attributes
+        /// <br/> T Time stamps
+        /// <br/> X Skip alt data streams
+        /// <br/> S NTFS access control list (ACL)
+        /// <br/> O Owner information
+        /// <br/> U Auditing information
         /// </summary>
         [DefaultValue("DAT")]
         public string CopyFlags

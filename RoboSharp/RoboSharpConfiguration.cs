@@ -441,6 +441,8 @@ namespace RoboSharp
                     return config.LogParsing_ExtraDir;
                 case ProcessedDirectoryFlag.NewDir:
                     return config.LogParsing_NewDir;
+                case ProcessedDirectoryFlag.MisMatch:
+                    return config.LogParsing_MismatchFile;
                 default:
                     throw new NotImplementedException(string.Format("{0} '{1}' Not Implemented!", nameof(ProcessedDirectoryFlag), status));
             }

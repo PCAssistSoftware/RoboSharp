@@ -60,6 +60,7 @@ namespace RoboSharp
             FileClass = command.Configuration.GetFileClass(status);
             Name = command.LoggingOptions.IncludeFullPathNames ? file.FullName : file.Name;
             Size = file.Exists ? file.Length : 0;
+            classEnum = (int)status;
         }
 
         /// <summary>
@@ -72,6 +73,7 @@ namespace RoboSharp
             FileClass = SystemMessageFileClass;
             Name = systemMessage;
             Size = 0;
+            classEnum = 0;
         }
 
         /// <summary>
@@ -91,7 +93,10 @@ namespace RoboSharp
             FileClass = command.Configuration.GetDirectoryClass(status);
             Name = directory.FullName; //command.LoggingOptions.IncludeFullPathNames ? directory.FullName : directory.Name;
             Size = size;
+            classEnum = (int)status;
         }
+
+        private int classEnum;
 
         /// <summary>Description of the item as reported by RoboCopy</summary>
         public string FileClass { get; set; }
@@ -222,6 +227,7 @@ namespace RoboSharp
         {
             if (FileClassType != FileClassType.NewDir) throw new System.Exception("Unable to apply ProcessedDirectoryFlag to File or System Message");
             FileClass = config.GetDirectoryClass(status);
+            classEnum = (int)status;
         }
         /// <inheritdoc cref="SetDirectoryClass(ProcessedDirectoryFlag, RoboSharpConfiguration)"/>
         public void SetDirectoryClass(ProcessedDirectoryFlag status, IRoboCommand config) => SetDirectoryClass(status, config.Configuration);
@@ -232,6 +238,7 @@ namespace RoboSharp
         {
             if (FileClassType != FileClassType.File) throw new System.Exception("Unable to apply ProcessedFileFlag to Directory or System Message");
             FileClass = config.GetFileClass(status);
+            classEnum = (int)status;
         }
         /// <inheritdoc cref="SetDirectoryClass(ProcessedDirectoryFlag, RoboSharpConfiguration)"/>
         public void SetFileClass(ProcessedFileFlag status, IRoboCommand config) => SetFileClass(status, config.Configuration);
@@ -242,6 +249,11 @@ namespace RoboSharp
         /// <inheritdoc cref="TryGetDirectoryClass(RoboSharpConfiguration, out ProcessedDirectoryFlag)"/>
         public bool TryGetFileClass(RoboSharpConfiguration conf, out ProcessedFileFlag flag)
         {
+            if (classEnum >= 0)
+            {
+                flag = (ProcessedFileFlag)classEnum;
+                return true;
+            }
             foreach (ProcessedFileFlag f in typeof(ProcessedFileFlag).GetEnumValues())
             {
                 if (this.FileClass == conf.GetFileClass(f))
@@ -262,6 +274,11 @@ namespace RoboSharp
         /// <returns>TRUE if a match was found, otherwise false.</returns>
         public bool TryGetDirectoryClass(RoboSharpConfiguration conf, out ProcessedDirectoryFlag flag)
         {
+            if (classEnum >= 0)
+            {
+                flag = (ProcessedDirectoryFlag)classEnum;
+                return true;
+            }
             foreach (ProcessedDirectoryFlag f in typeof(ProcessedDirectoryFlag).GetEnumValues())
             {
                 if (this.FileClass == conf.GetDirectoryClass(f))
@@ -272,6 +289,76 @@ namespace RoboSharp
             }
             flag = ProcessedDirectoryFlag.None;
             return false;
+        }
+
+        /// <summary>
+        /// Converts the stored integer into <see cref="ProcessedDirectoryFlag"/>
+        /// </summary>
+        /// <remarks>May not be set if using a standard RoboCommand.</remarks>
+        /// <returns>
+        /// Casts the underling value to <see cref="ProcessedDirectoryFlag"/> if this is <see cref="FileClassType.NewDir"/>
+        /// <br/> Otherwise returns <see cref="ProcessedDirectoryFlag.None"/>
+        /// </returns>
+        public ProcessedDirectoryFlag GetProcessedDirectoryFlag() => FileClassType == FileClassType.NewDir ? (ProcessedDirectoryFlag)classEnum : ProcessedDirectoryFlag.None;
+
+        /// <summary>
+        /// Converts the stored integer into <see cref="ProcessedFileFlag"/>
+        /// </summary>
+        /// <returns>
+        /// <remarks>May not be set if using a standard RoboCommand.</remarks>
+        /// Casts the underling value to <see cref="ProcessedFileFlag"/> if this is <see cref="FileClassType.File"/>
+        /// <br/> Otherwise returns <see cref="ProcessedFileFlag.None"/>
+        /// </returns>
+        public ProcessedFileFlag GetProcessedFileFlag() => FileClassType == FileClassType.File ? (ProcessedFileFlag)classEnum : ProcessedFileFlag.None;
+
+        /// <summary>
+        /// Compares the <see cref="FileClass"/> against the <paramref name="config"/> and attempts to set the underlying value that is referenced by 
+        /// <see cref="GetProcessedDirectoryFlag"/> and <see cref="GetProcessedFileFlag"/>
+        /// </summary>
+        /// <param name="config"></param>
+        public void TrySetClassEnum(RoboSharpConfiguration config)
+        {
+            const StringComparison comparison = StringComparison.InvariantCultureIgnoreCase;
+            if (FileClassType == FileClassType.SystemMessage || string.IsNullOrWhiteSpace(FileClass))
+            {
+                classEnum = 0;
+                return;
+            }
+
+            if (FileClassType == FileClassType.NewDir)
+            {
+                classEnum = true switch
+                {
+                    true when FileClass.Equals(config.LogParsing_DirectoryExclusion, comparison) => (int)ProcessedDirectoryFlag.Exclusion,
+                    true when FileClass.Equals(config.LogParsing_ExistingDir, comparison) => (int)ProcessedDirectoryFlag.ExistingDir,
+                    true when FileClass.Equals(config.LogParsing_ExtraDir, comparison) => (int)ProcessedDirectoryFlag.ExtraDir,
+                    true when FileClass.Equals(config.LogParsing_MismatchFile, comparison) => (int)ProcessedDirectoryFlag.MisMatch,
+                    true when FileClass.Equals(config.LogParsing_NewDir, comparison) => (int)ProcessedDirectoryFlag.NewDir,
+                    _ => 0
+                };
+                return;
+            }
+
+            classEnum = true switch
+            {
+                true when FileClass.Equals(config.LogParsing_AttribExclusion, comparison) => (int)ProcessedFileFlag.AttribExclusion,
+                true when FileClass.Equals(config.LogParsing_ChangedExclusion, comparison) => (int)ProcessedFileFlag.ChangedExclusion,
+                true when FileClass.Equals(config.LogParsing_ExtraFile, comparison) => (int)ProcessedFileFlag.ExtraFile,
+                true when FileClass.Equals(config.LogParsing_FailedFile, comparison) => (int)ProcessedFileFlag.Failed,
+                true when FileClass.Equals(config.LogParsing_FileExclusion, comparison) => (int)ProcessedFileFlag.FileExclusion,
+                true when FileClass.Equals(config.LogParsing_MaxAgeOrAccessExclusion, comparison) => (int)ProcessedFileFlag.MaxAgeSizeExclusion,
+                true when FileClass.Equals(config.LogParsing_MaxFileSizeExclusion, comparison) => (int)ProcessedFileFlag.MaxFileSizeExclusion,
+                true when FileClass.Equals(config.LogParsing_MinAgeOrAccessExclusion, comparison) => (int)ProcessedFileFlag.MinAgeSizeExclusion,
+                true when FileClass.Equals(config.LogParsing_MinFileSizeExclusion, comparison) => (int)ProcessedFileFlag.MinFileSizeExclusion,
+                true when FileClass.Equals(config.LogParsing_MismatchFile, comparison) => (int)ProcessedFileFlag.MisMatch,
+                true when FileClass.Equals(config.LogParsing_ModifiedInclusion, comparison) => (int)ProcessedFileFlag.ModifiedInclusion,
+                true when FileClass.Equals(config.LogParsing_NewerFile, comparison) => (int)ProcessedFileFlag.ModifiedInclusion,
+                true when FileClass.Equals(config.LogParsing_NewFile, comparison) => (int)ProcessedFileFlag.NewFile,
+                true when FileClass.Equals(config.LogParsing_OlderFile, comparison) => (int)ProcessedFileFlag.OlderFile,
+                true when FileClass.Equals(config.LogParsing_SameFile, comparison) => (int)ProcessedFileFlag.SameFile,
+                true when FileClass.Equals(config.LogParsing_TweakedInclusion, comparison) => (int)ProcessedFileFlag.TweakedInclusion,
+                _ => 0
+            };
         }
     }
 }

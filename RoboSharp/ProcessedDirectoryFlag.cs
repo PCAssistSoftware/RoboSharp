@@ -23,5 +23,9 @@ namespace RoboSharp
         ExtraDir,
         /// <inheritdoc cref="RoboSharpConfiguration.LogParsing_NewDir"/>
         NewDir,
+        /// <summary>
+        /// Indicates that the source is a directory and the destination with the same name is a file
+        /// </summary>
+        MisMatch,
     }
 }

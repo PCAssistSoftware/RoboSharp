@@ -803,7 +803,7 @@ namespace RoboSharp
                         file.Size = long.TryParse(splitData[0].Replace("New Dir", "").Trim(), out long size) ? size : 0;
                         file.Name = splitData[1];
                     }
-
+                    file.TrySetClassEnum(Configuration);
                     ProgressEstimator?.AddDir(file);
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
                 }
@@ -816,6 +816,7 @@ namespace RoboSharp
                         Size = long.TryParse(splitData[1], out long size) ? size : 0,
                         Name = splitData[2]
                     };
+                    file.TrySetClassEnum(Configuration);
                     ProgressEstimator?.AddFile(file);
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
                 }

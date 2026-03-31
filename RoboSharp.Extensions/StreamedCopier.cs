@@ -98,6 +98,8 @@ namespace RoboSharp.Extensions
             WasCancelled = false;
             StartDate = DateTime.Now;
 
+
+            bool hidden = Destination.Attributes > 0  && Destination.Attributes.HasFlag(FileAttributes.Hidden);
             try
             {
                 Destination.Directory.Create();
@@ -105,6 +107,8 @@ namespace RoboSharp.Extensions
                 int bSize = Source.Length > 0 && Source.Length < BufferSize ? (int)Source.Length : BufferSize;
                 int bytesRead = 0;
                 bool shouldUpdate = false;
+                
+                if (hidden) Destination.Attributes &= ~FileAttributes.Hidden;
                 using Timer updatePeriod = new Timer(o => shouldUpdate = true, null, 0, 100);
                 using var reader = new FileStream(Source.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, bSize, true);
                 using var writer = new FileStream(Destination.FullName, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, bSize, true);
@@ -145,7 +149,7 @@ namespace RoboSharp.Extensions
                     updatePeriod.Dispose();
                     // Ensure that the file attributes and modify date match as if copied via File.CopyTo
                     Destination.Refresh();
-                    Destination.Attributes = Destination.Attributes;
+                    Destination.Attributes = Source.Attributes;
                     Destination.LastWriteTimeUtc = Source.LastWriteTimeUtc;
                 }
                 catch (OperationCanceledException)

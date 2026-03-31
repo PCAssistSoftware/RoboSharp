@@ -267,22 +267,22 @@ namespace RoboSharp
         public List<string> ExcludedDirectories { get; } = new List<string>();
 
         /// <summary>
-        /// Excludes changed files.
-        /// [/XC]
+        /// Excludes changed files. [/XC]
+        /// <para/> Changed = (Same File Date + Different File Size)
         /// </summary>
         [DefaultValue(false)]
         public virtual bool ExcludeChanged { get; set; }
 
         /// <summary>
-        /// Excludes newer files.
-        /// [/XN]
+        /// Excludes newer files. [/XN]
+        /// <para/>Prevents files that are older in the destination from being overwritten by newer files from the source.
         /// </summary>
         [DefaultValue(false)]
         public virtual bool ExcludeNewer { get; set; }
 
         /// <summary>
-        /// Excludes older files.
-        /// [/XO]
+        /// Excludes older files. [/XO]
+        /// <para/>Prevents files that are newer in the destination from being overwritten by older files from the source.
         /// </summary>
         [DefaultValue(false)]
         public virtual bool ExcludeOlder { get; set; }
@@ -298,30 +298,36 @@ namespace RoboSharp
         public virtual bool ExcludeExtra { get; set; }
 
         /// <summary>
-        /// Excludes lonely files and directories.
-        /// [/XL]
+        /// Excludes lonely files and directories. [/XL]
+        /// <para/> Lonely files/directories exist in the source but not the destination.
         /// </summary>
         [DefaultValue(false)]
         public virtual bool ExcludeLonely { get; set; }
 
         /// <summary>
-        /// Includes the same files.
-        /// [/IS]
+        /// Includes the same files. [/IS]
+        /// <para/>
         /// </summary>
         [DefaultValue(false)]
         public virtual bool IncludeSame { get; set; }
 
         /// <summary>
-        /// Includes tweaked files.
-        /// [/IT]
+        /// Includes tweaked files. [/IT]
+        /// <para/> Tweaked = Same Date + Different <see cref="FileAttributes"/>
         /// </summary>
         [DefaultValue(false)]
         public virtual bool IncludeTweaked { get; set; }
 
         /// <summary>
-        /// Includes modified files (differing change times).
-        /// [/IM]
+        /// Includes modified files (differing change times). [/IM]
         /// </summary>
+        /// <remarks>
+        /// Include modified MFT files. The MFT (Master File Table) contains file attributes, filenames and
+        /// security permissions.If the MFT timestamp is different then the destination file will be
+        /// overwritten even if all the attributes are the same. /IM is equivalent to /copy:DATS
+        /// By default robocopy ignores the file attributes and looks only at the file size and modified time
+        /// <see href="https://ss64.com/nt/robocopy.html"/>
+        /// </remarks>
         [DefaultValue(false)]
         public virtual bool IncludeModified { get; set; }
 

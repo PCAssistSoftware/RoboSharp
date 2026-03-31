@@ -32,7 +32,8 @@ namespace RoboSharp.Extensions.Options
         public static bool IsRecursive(this CopyActionFlags flag) =>
             flag.HasFlag(CopyActionFlags.CopySubdirectories) ||
             flag.HasFlag(CopyActionFlags.CopySubdirectoriesIncludingEmpty) ||
-            flag.HasFlag(CopyActionFlags.Mirror);
+            flag.HasFlag(CopyActionFlags.Mirror) ||
+            flag.HasFlag(CopyActionFlags.MoveFilesAndDirectories);
 
         /// <summary>
         /// Evaluates the <paramref name="options"/> to check if any of the options the recurse through subdirectories are enabled
@@ -41,6 +42,15 @@ namespace RoboSharp.Extensions.Options
             options.CopySubdirectories ||
             options.CopySubdirectoriesIncludingEmpty ||
             options.Mirror;
+
+        /// <summary>
+        /// Evaluates the <paramref name="options"/> to determine if empty directories should be created at the destination
+        /// </summary>
+        public static bool IsIncludingEmptyDirectories(this CopyOptions options) =>
+            options.Mirror
+            || options.CopySubdirectoriesIncludingEmpty
+            || options.MoveFilesAndDirectories
+            ; 
 
         /// <summary>
         /// Evaluates the <paramref name="flag"/> to check if any of the PURGE options are enabled

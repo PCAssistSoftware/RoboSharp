@@ -75,5 +75,41 @@ namespace RoboSharp.Extensions.Tests
             Assert.AreEqual(2, dp.ExtraDirectories.Count());
             Assert.IsFalse(dp.SourceDirectories.Any(d => d.Destination.FullName == sub1));
         }
+
+        [TestMethod]
+        public void Test_IsMismatch()
+        {
+            var dir = Test_Setup.GetNewTempPath();
+            var file = Test_Setup.GetNewTempPath();
+            try
+            {
+
+                File.WriteAllText(file, "test");
+                var fInfo = new FileInfo(file);
+                var fInfo2 = new FileInfo(file);
+                var dInfo = Directory.CreateDirectory(dir);
+                var dInfo2 = Directory.CreateDirectory(dir);
+
+                // is mismatch because one if a file and other is a directory
+                Assert.IsTrue(IDirectoryPairExtensions.IsMismatch(dInfo, fInfo));
+                Assert.IsTrue(IDirectoryPairExtensions.IsMismatch(fInfo, dInfo));
+
+                // is not mismatch because other path does not exist
+                string notExist = Test_Setup.GetNewTempPath();
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(fInfo, new FileInfo(notExist)));
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(fInfo, new DirectoryInfo(notExist)));
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(dInfo, new FileInfo(notExist)));
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(dInfo, new DirectoryInfo(notExist)));
+
+                // is not mismatch because both are of same type
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(fInfo, fInfo2));
+                Assert.IsFalse(IDirectoryPairExtensions.IsMismatch(dInfo, dInfo2));
+            }
+            finally
+            {
+                File.Delete(file);
+                Directory.Delete(dir);
+            }
+        }
     }
 }
