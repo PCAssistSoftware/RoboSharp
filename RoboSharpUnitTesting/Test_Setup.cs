@@ -16,7 +16,6 @@ namespace RoboSharp.UnitTests
     {
         private static string TestFileRoot => Path.Combine(Directory.GetCurrentDirectory(), "TEST_FILES");
         
-        public static string TestDestination { get; } = Path.Combine(TestFileRoot, "DESTINATION");
         public static string Source_LargerNewer { get; } = Path.Combine(TestFileRoot, "LargerNewer");
         public static string Source_Standard { get; } = Path.Combine(TestFileRoot, "STANDARD");
 
@@ -46,12 +45,12 @@ namespace RoboSharp.UnitTests
         /// <remarks>
         /// </remarks>
         /// <param name="UseLargerFileSet">When set to TRUE, uses the larger file set (which is also newer save times)</param>
-        public static RoboCommand GenerateCommand(bool UseLargerFileSet, bool ListOnlyMode)
+        public static RoboCommand GenerateCommand(string destination, bool UseLargerFileSet, bool ListOnlyMode)
         {
             // Build the base command
             var cmd = new RoboCommand();
             cmd.CopyOptions.Source = UseLargerFileSet ? Source_LargerNewer : Source_Standard;
-            cmd.CopyOptions.Destination = TestDestination;
+            cmd.CopyOptions.Destination = destination;
             cmd.CopyOptions.CopySubdirectoriesIncludingEmpty = true;
             cmd.LoggingOptions.ApplyLoggingFlags(LoggingFlags.VerboseOutput | LoggingFlags.OutputToRoboSharpAndLog | LoggingFlags.PrintSizesAsBytes);
             cmd.LoggingOptions.ListOnly = ListOnlyMode;
@@ -88,15 +87,14 @@ namespace RoboSharp.UnitTests
         /// <summary>
         /// Deletes all and folders in <see cref="TestDestination"/>
         /// </summary>
-        public static void ClearOutTestDestination()
+        public static void ClearOutTestDestination(string directory)
         {
-
-            if (Directory.Exists(TestDestination))
+            if (Directory.Exists(directory))
             {
-                var files = new DirectoryInfo(TestDestination).GetFiles("*", SearchOption.AllDirectories);
+                var files = new DirectoryInfo(directory).GetFiles("*", SearchOption.AllDirectories);
                 foreach (var f in files)
                     File.SetAttributes(f.FullName, FileAttributes.Normal);
-                Directory.Delete(TestDestination, true);
+                Directory.Delete(directory, true);
             }
         }
 

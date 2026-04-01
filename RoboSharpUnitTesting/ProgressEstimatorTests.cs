@@ -24,14 +24,25 @@ namespace RoboSharp.UnitTests
     public class ProgressEstimatorTests
     {
         public virtual bool ListOnlyMode => false;
-        
+
         public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
+
 
         //[TestMethod]
         public async Task SAMPLE_TEST_METHOD()
         {
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
             
 
             //Run the test and Evaluate the results and pass/Fail the test
@@ -44,10 +55,9 @@ namespace RoboSharp.UnitTests
         public async Task Test_NoCopyOptions()
         {
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
 
             //Run the test - First Test should just use default values generated from the GenerateCommand method!
-            Test_Setup.ClearOutTestDestination();
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
 
             //Evaluate the results and pass/Fail the test
@@ -58,9 +68,8 @@ namespace RoboSharp.UnitTests
         public async Task Test_ExcludedFiles()
         {
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
             cmd.SelectionOptions.ExcludedFiles.Add("4_Bytes.txt"); // 3 copies of this file exist
-            Test_Setup.ClearOutTestDestination();
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
@@ -69,9 +78,9 @@ namespace RoboSharp.UnitTests
         public async Task Test_MinFileSize()
         {
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(true, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, true, ListOnlyMode);
             cmd.SelectionOptions.MinFileSize = 1500;
-            Test_Setup.ClearOutTestDestination();
+            
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
@@ -80,9 +89,9 @@ namespace RoboSharp.UnitTests
         public async Task Test_MaxFileSize()
         {
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(true, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, true, ListOnlyMode);
             cmd.SelectionOptions.MaxFileSize = 1500;
-            Test_Setup.ClearOutTestDestination();
+            
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             UnitTestResults.AssertTest();//Evaluate the results and pass/Fail the test
         }
@@ -94,7 +103,7 @@ namespace RoboSharp.UnitTests
 
             //Create the command and base values for the Expected Results
             List<string> CommandErrorData = new List<string>();
-            RoboCommand cmd = Test_Setup.GenerateCommand(true, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, true, ListOnlyMode);
             cmd.OnCommandError += (o, e) =>
             {
                 CommandErrorData.Add(e.Error);
@@ -104,11 +113,11 @@ namespace RoboSharp.UnitTests
                 }
             };
             
-            Test_Setup.ClearOutTestDestination();
-            Directory.CreateDirectory(Test_Setup.TestDestination);
+            
+            Directory.CreateDirectory(Destination);
             RoboSharpTestResults UnitTestResults;
             //Create a file in the destination that would normally be copied, then lock it to force an error being generated.
-            string fPath = Path.Combine(Test_Setup.TestDestination, "4_Bytes.txt");
+            string fPath = Path.Combine(Destination, "4_Bytes.txt");
             Console.WriteLine("Configuration File Error Token: " + cmd.Configuration.ErrorToken);
             Console.WriteLine("Error Token Regex: " + cmd.Configuration.ErrorTokenRegex);
             Console.WriteLine("Creating and locking file: " + fPath);
@@ -134,7 +143,7 @@ namespace RoboSharp.UnitTests
         public async Task Test_ExcludeLastAccessDate()
         {
             //Create the command and base values for the Expected Results
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
 
             //Set last access time to date in the past for two files
             string filePath1 = Path.Combine(Directory.GetCurrentDirectory(), "TEST_FILES", "STANDARD", "1024_Bytes.txt");
@@ -145,7 +154,7 @@ namespace RoboSharp.UnitTests
             //Set Up Results
             cmd.SelectionOptions.MaxLastAccessDate = "19900101";
 
-            Test_Setup.ClearOutTestDestination();
+            
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
 
             //Evaluate the results and pass/Fail the test
@@ -164,9 +173,9 @@ namespace RoboSharp.UnitTests
         [Timeout(2000, CooperativeCancellation = true)]
         public async Task TestMultiThread(int threads)
         {
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
             cmd.CopyOptions.MultiThreadedCopiesCount = threads;
-            Test_Setup.ClearOutTestDestination();
+            
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             
             // Ignore Directory Statistics during a multithread test, as they are not reported by robocopy
@@ -226,7 +235,7 @@ namespace RoboSharp.UnitTests
             TestContext.CancellationToken.ThrowIfCancellationRequested();
 
             // Create the Command
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, ListOnlyMode);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, ListOnlyMode);
 
             //Set all files in source as normal
             var sourcePath = Test_Setup.Source_Standard;
@@ -263,7 +272,7 @@ namespace RoboSharp.UnitTests
             }
 
             TestContext.CancellationToken.ThrowIfCancellationRequested();
-            Test_Setup.ClearOutTestDestination();
+            
             RoboSharpTestResults UnitTestResults = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
             
             //Revert all modified files to their normal state

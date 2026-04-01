@@ -12,6 +12,18 @@ namespace RoboSharp.UnitTests
     [TestClass]
     public class JobOptionsTests
     {
+        public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
+
         private static string GetJobFilePath(string fileName = "TestJobFile.rcj") => Path.Combine(Path.GetDirectoryName(Test_Setup.Source_Standard), "JobFileTesting", fileName);
 
         [DataRow("Mirror.rcj", "/MIR")]
@@ -61,7 +73,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public async Task TestPreventCopy() 
         {
-            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName()));
+            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Destination, Path.GetRandomFileName()));
             Console.WriteLine("Destination Path: " + cmd.CopyOptions.Destination);
             cmd.CopyOptions.Depth = 1;
             cmd.CopyOptions.FileFilter = new string[] { "*.ABCDEF" };
@@ -91,7 +103,7 @@ namespace RoboSharp.UnitTests
         public async Task Test_SaveJobFile(bool savePaths) 
 		{
             if (File.Exists(GetJobFilePath())) File.Delete(GetJobFilePath());
-            string dest = Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName());
+            string dest = Path.Combine(Destination, Path.GetRandomFileName());
             RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: dest);
             await cmd.SaveAsJobFile(GetJobFilePath(), savePaths, savePaths);
             Assert.IsTrue(File.Exists(GetJobFilePath()), "\n Job File was not saved.");
@@ -107,7 +119,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public async Task Test_SaveJobFileError(string savePath)
         {
-            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName()));
+            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Destination, Path.GetRandomFileName()));
             bool errorRaised = false;
             cmd.OnCommandError += (o, e) =>
             {

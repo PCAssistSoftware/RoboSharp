@@ -10,13 +10,25 @@ namespace RoboSharp.UnitTests
     [TestClass]
     public class LoggingOptionsTests
     {
+        public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
+
         /// <summary>
         /// This test ensures that the destination directory is not created when using the /QUIT function
         /// </summary>
         [TestMethod]
         public async Task TestListOnlyDestinationCreation() 
         {
-            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Path.Combine(Test_Setup.TestDestination, Path.GetRandomFileName()));
+            RoboCommand cmd = new RoboCommand(source: Test_Setup.Source_Standard, destination: Destination);
             Console.WriteLine("Destination Path: " + cmd.CopyOptions.Destination);
             cmd.CopyOptions.Depth = 1;
             cmd.CopyOptions.FileFilter = new string[] { "*.ABCDEF" };
@@ -76,7 +88,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public async Task TestBytes(bool withBytes)
         {
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, true);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, true);
             cmd.LoggingOptions.PrintSizesAsBytes = withBytes;
             await cmd.Start();
             var results = cmd.GetResults();
@@ -92,8 +104,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public async Task ConfigurationLoggingEnabled(bool isEnabled, bool listOnly)
         {
-            Test_Setup.ClearOutTestDestination();
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, listOnly);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, listOnly);
             cmd.Configuration.EnableFileLogging = isEnabled;
             await cmd.Start();
             var results = cmd.GetResults();
@@ -108,8 +119,7 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public async Task TestSummaryAndHeader(bool header, bool summary)
         {
-            Test_Setup.ClearOutTestDestination();
-            RoboCommand cmd = Test_Setup.GenerateCommand(false, true);
+            RoboCommand cmd = Test_Setup.GenerateCommand(Destination, false, true);
             //cmd.Configuration.EnableFileLogging = true;
             cmd.LoggingOptions.NoJobHeader = !header;
             cmd.LoggingOptions.NoJobSummary= !summary;

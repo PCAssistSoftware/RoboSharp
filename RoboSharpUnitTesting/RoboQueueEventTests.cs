@@ -11,9 +11,21 @@ namespace RoboSharp.UnitTests
     [TestClass]
     public class RoboQueueEventTests
     {
-        private static RoboQueue GenerateRQ(out RoboCommand cmd)
+        public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
         {
-            cmd = Test_Setup.GenerateCommand(false, false);
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
+
+        private RoboQueue GenerateRQ(out RoboCommand cmd)
+        {
+            cmd = Test_Setup.GenerateCommand(Destination, false, false);
             return new RoboQueue(cmd);
         }
 
@@ -47,7 +59,6 @@ namespace RoboSharp.UnitTests
         public async Task RoboQueue_OnCopyProgressChanged()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
-            Test_Setup.ClearOutTestDestination();
             bool TestPassed = false;
             RQ.OnCopyProgressChanged += (o, e) => TestPassed = true;
             await RunTestThenAssert(RQ, () => TestPassed);
@@ -62,9 +73,8 @@ namespace RoboSharp.UnitTests
             var RQ = GenerateRQ(out RoboCommand cmd);
             bool TestPassed = false;
             RQ.OnError += (o, e) => TestPassed = true;
-            Test_Setup.ClearOutTestDestination();
-            Directory.CreateDirectory(Test_Setup.TestDestination);
-            using (var f = File.CreateText(Path.Combine(Test_Setup.TestDestination, "4_Bytes.txt")))
+            Directory.CreateDirectory(Destination);
+            using (var f = File.CreateText(Path.Combine(Destination, "4_Bytes.txt")))
             {
                 f.WriteLine("StartTest!");
                 Console.WriteLine("Expecting 1 File Failed!\n\n");
@@ -76,7 +86,6 @@ namespace RoboSharp.UnitTests
         public async Task RoboQueue_OnFileProcessed()
         {
             var RQ = GenerateRQ(out RoboCommand cmd);
-            Test_Setup.ClearOutTestDestination();
             bool TestPassed = false;
             RQ.OnFileProcessed += (o, e) => TestPassed = true;
             await RunTestThenAssert(RQ, () => TestPassed);

@@ -13,6 +13,18 @@ namespace RoboSharp.UnitTests
     [TestClass]
     public class SerializationTests
     {
+        public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
+
         [TestMethod]
         public void Test_JobFileSerializer()
         {
@@ -22,7 +34,7 @@ namespace RoboSharp.UnitTests
                 new RoboCommand("Job2", true),
                 new RoboCommand("Job3", true)
             };
-            string path = Path.Combine(Test_Setup.TestDestination);
+            string path = Path.Combine(Destination);
             var serializer = new JobFileSerializer();
             serializer.Serialize(arr1, path);
             var obj = serializer.Deserialize(path);
@@ -32,17 +44,18 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public void Test_XmlSerializer()
         {
+            Directory.CreateDirectory(Destination);
             var serializer = new RoboSharp.RoboCommandXmlSerializer();
             var commands = new IRoboCommand[]
             {
-                new RoboCommand(Test_Setup.Source_Standard, Test_Setup.TestDestination, "Test1", true),
-                new RoboCommand(Test_Setup.Source_Standard, Test_Setup.TestDestination, copyActionFlags: CopyActionFlags.Purge, loggingFlags: LoggingFlags.IncludeFullPathNames) {Name = "Test2" },
-                new RoboCommand(Test_Setup.Source_Standard, Test_Setup.TestDestination, CopyActionFlags.MoveFilesAndDirectories, SelectionFlags.ExcludeLonely, LoggingFlags.NoDirectoryList){Name = "Test3" }
+                new RoboCommand(Test_Setup.Source_Standard, Destination, "Test1", true),
+                new RoboCommand(Test_Setup.Source_Standard, Destination, copyActionFlags: CopyActionFlags.Purge, loggingFlags: LoggingFlags.IncludeFullPathNames) {Name = "Test2" },
+                new RoboCommand(Test_Setup.Source_Standard, Destination, CopyActionFlags.MoveFilesAndDirectories, SelectionFlags.ExcludeLonely, LoggingFlags.NoDirectoryList){Name = "Test3" }
             };
             commands[0].CopyOptions.AddFileFilter("*.pdf", "*.txt");
             commands[1].SelectionOptions.ExcludedDirectories.AddRange(new string[] { "Archive", "SomeDirectory" });
             commands[2].SelectionOptions.ExcludedFiles.AddRange(new string[] { "SomeFile.txt", "SomeOtherFile.pdf" });
-            string path = Path.Combine(Test_Setup.TestDestination, "XmlSerializerTest.xml");
+            string path = Path.Combine(Destination, "XmlSerializerTest.xml");
             serializer.Serialize(commands, path);
             Assert.IsTrue(File.Exists(path), "Failed to create file.");
             var readCommands = serializer.Deserialize(path).ToArray();
@@ -60,7 +73,8 @@ namespace RoboSharp.UnitTests
         [TestMethod]
         public void Test_RoboQueueCollectionChanged()
         {
-            string path = Path.Combine(Test_Setup.TestDestination, "XmlSerializerTest.xml");
+            Directory.CreateDirectory(Destination);
+            string path = Path.Combine(Destination, "XmlSerializerTest.xml");
             if (!File.Exists(path)) Test_XmlSerializer();
 
             RoboQueue Q = new RoboQueue();

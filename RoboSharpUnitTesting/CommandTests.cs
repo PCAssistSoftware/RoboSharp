@@ -3,6 +3,7 @@ using RoboSharp;
 using RoboSharp.Interfaces;
 using RoboSharp.Results;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -595,6 +596,9 @@ namespace RoboSharp.UnitTests
         /// Extra Directories are always reported in the results overview regardless of recursion mode.
         /// </summary>
         [TestMethod, Timeout(5000, CooperativeCancellation = true)]
+        [DataRow(CopyActionFlags.Default, LoggingFlags.RoboSharpDefault, DisplayName = "Default")]
+        [DataRow(CopyActionFlags.Default, LoggingFlags.ReportExtraFiles, DisplayName = "Default Copy Options - Report Extra")]
+        [DataRow(CopyActionFlags.Default, LoggingFlags.VerboseOutput, DisplayName = "Default Copy Options - Verbose")]
         [DataRow(CopyActionFlags.CopySubdirectories, LoggingFlags.RoboSharpDefault, DisplayName = "CopySubdirectories")]
         [DataRow(CopyActionFlags.CopySubdirectories, LoggingFlags.ReportExtraFiles, DisplayName = "CopySubdirectories - Report Extra")]
         [DataRow(CopyActionFlags.CopySubdirectories, LoggingFlags.VerboseOutput, DisplayName = "CopySubdirectories - Verbose")]
@@ -629,6 +633,8 @@ namespace RoboSharp.UnitTests
         /// <br/> This test verifies they are reported in the log lines when ReportExtraFiles or VerboseOutput is set.
         /// </summary>
         [TestMethod, Timeout(5000, CooperativeCancellation = true)]
+        [DataRow(LoggingFlags.RoboSharpDefault, 1, DisplayName = "Default - 1 extra files in dest root")]
+        [DataRow(LoggingFlags.RoboSharpDefault, 3, DisplayName = "Default- 3 extra files in dest root")]
         [DataRow(LoggingFlags.VerboseOutput, 1, DisplayName = "Verbose - 1 extra files in dest root")]
         [DataRow(LoggingFlags.VerboseOutput, 3, DisplayName = "Verbose - 3 extra files in dest root")]
         [DataRow(LoggingFlags.ReportExtraFiles, 1, DisplayName = "ReportExtras - 3 extra files in dest root")]
@@ -1047,60 +1053,13 @@ namespace RoboSharp.UnitTests
                 expectedFileSkipped: 0);
         }
 
-        [TestMethod]
-        [DataRow(true)]
-        [DataRow(false)] 
-        public async Task Test_Selection_ExcludeOlder(bool value)
-        {
-            (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
-            string destDir = TempDest;
-            try
-            {
-                // Setup Directories
-                Directory.CreateDirectory(sourceDir);
-                File.WriteAllText(sourceFile, "test");
-                Directory.CreateDirectory(destDir);
-                var destFile = new FileInfo(Path.Combine(destDir, Path.GetFileName(sourceFile)));
-                File.Copy(sourceFile, destFile.FullName);
-
-                DateTime stamp = DateTime.UtcNow.AddMinutes(-10);
-                File.SetLastWriteTimeUtc(sourceFile, stamp);
-                File.SetLastWriteTimeUtc(destFile.FullName, stamp.AddMinutes(5));  // Dest is 5 minutes newer
-
-                var sourceFileInfo = new FileInfo(sourceFile);
-                destFile.Refresh();
-
-                Assert.AreEqual(sourceFileInfo.Length, destFile.Length);
-                Assert.AreEqual(sourceFileInfo.Attributes, destFile.Attributes);
-                Assert.IsGreaterThan(File.GetLastWriteTimeUtc(sourceFile), File.GetLastWriteTimeUtc(destFile.FullName));
-
-                // Run command
-                var cmd = GetCommand(sourceDir, destDir);
-                cmd.SelectionOptions.ExcludeOlder = value;
-                var results = await RunCommand(cmd);
-                Assert.IsNotNull(results);
-                try
-                {
-                    
-                    Assert.AreEqual(value ? 0 : 1, results.FilesStatistic.Copied);
-                    Assert.AreEqual(value ? 1 : 0, results.FilesStatistic.Skipped);
-                }
-                catch
-                {
-                    Console.WriteLine(String.Join(Environment.NewLine, results.LogLines));
-                    throw;
-                }
-            }
-            finally
-            {
-                try { Directory.Delete(sourceDir, true); } catch { }
-            }
-        }
-
+        /// <summary>
+        /// Same name, same timestamp, different sizes
+        /// </summary>
         [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public async Task Test_Selection_ExcludeNewer(bool value)
+        public async Task Test_Selection_ExcludeChanged(bool value)
         {
             (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
             string destDir = TempDest;
@@ -1109,56 +1068,21 @@ namespace RoboSharp.UnitTests
                 // Setup Directories
                 Directory.CreateDirectory(sourceDir);
                 File.WriteAllText(sourceFile, "test");
-                Directory.CreateDirectory(destDir);
+
                 var destFile = new FileInfo(Path.Combine(destDir, Path.GetFileName(sourceFile)));
-                File.Copy(sourceFile, destFile.FullName);
-                File.SetLastWriteTimeUtc(destFile.FullName, DateTime.UtcNow.AddMinutes(-10));
-
-                var sourceFileInfo = new FileInfo(sourceFile);
-                
-                Assert.AreEqual(sourceFileInfo.Length, destFile.Length);
-                Assert.AreEqual(sourceFileInfo.Attributes, destFile.Attributes);
-                Assert.IsLessThan(sourceFileInfo.LastWriteTimeUtc, File.GetLastWriteTimeUtc(destFile.FullName));
-
-                // Run command
-                var cmd = GetCommand(sourceDir, destDir);
-                cmd.SelectionOptions.ExcludeNewer = value;
-                var results = await RunCommand(cmd);
-                Assert.IsNotNull(results);
-                try
-                {
-                    Assert.AreEqual(value ? 0 : 1, results.FilesStatistic.Copied);
-                    Assert.AreEqual(value ? 1 : 0, results.FilesStatistic.Skipped);
-                }
-                catch
-                {
-                    Console.WriteLine(String.Join(Environment.NewLine, results.LogLines));
-                    throw;
-                }
-            }
-            finally
-            {
-                try { Directory.Delete(sourceDir, true); } catch { }
-            }
-        }
-
-        [TestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public async Task Test_Selection_ExcludeLonely(bool value)
-        {
-            (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
-            string destDir = TempDest;
-            try
-            {
-                // Setup Directories
-                Directory.CreateDirectory(sourceDir);
-                File.WriteAllText(sourceFile, "test");
                 Directory.CreateDirectory(destDir);
+                File.WriteAllText(destFile.FullName, "Different_Size_File");
+
+                var lastWriteTime = File.GetLastWriteTimeUtc(sourceFile);
+                File.SetLastWriteTimeUtc(destFile.FullName, lastWriteTime);
+
+                Assert.AreNotEqual(new FileInfo(sourceFile).Length, destFile.Length);
+                Assert.AreEqual(lastWriteTime, File.GetLastWriteTimeUtc(sourceFile));
+                Assert.AreEqual(lastWriteTime, File.GetLastWriteTimeUtc(destFile.FullName));
 
                 // Run command
                 var cmd = GetCommand(sourceDir, destDir);
-                cmd.SelectionOptions.ExcludeLonely = value;
+                cmd.SelectionOptions.ExcludeChanged = value;
                 var results = await RunCommand(cmd);
                 Assert.IsNotNull(results);
                 try
@@ -1179,47 +1103,194 @@ namespace RoboSharp.UnitTests
         }
 
         /// <summary>
-        /// Same name, same timestamp, different sizes
+        /// Lonely Dirs are reported if discovered at a level, even if not recursive.
         /// </summary>
         [TestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public async Task Test_Selection_ExcludeChanged(bool value)
+        [DataRow(true, true, DisplayName = "Exclude Lonely - Recursive")]
+        [DataRow(true, false, DisplayName = "Exclude Lonely - Depth = 1")]
+        [DataRow(false, false, DisplayName = "Copy - Depth = 1")]
+        [DataRow(false, true, DisplayName = "Copy - Recursive")]
+        public async Task Test_Selection_ExcludeLonely(bool excludeLonely, bool recursive)
         {
             (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
             string destDir = TempDest;
             try
             {
                 // Setup Directories
+                string subDir = Path.Combine(sourceDir, "SubDir");
+                string subFile = Path.Combine(subDir, Path.GetFileName(sourceFile));
                 Directory.CreateDirectory(sourceDir);
                 File.WriteAllText(sourceFile, "test");
-                
-                var destFile = new FileInfo(Path.Combine(destDir, Path.GetFileName(sourceFile)));
+                Directory.CreateDirectory(subDir);
+                File.WriteAllText(subFile, "test");
+
                 Directory.CreateDirectory(destDir);
-                File.WriteAllText(destFile.FullName, "Different_Size_File");
-
-                var lastWriteTime = File.GetLastWriteTimeUtc(sourceFile);
-                File.SetLastWriteTimeUtc(destFile.FullName, lastWriteTime);
-
-                Assert.AreNotEqual(new FileInfo(sourceFile).Length, destFile.Length);
-                Assert.AreEqual(lastWriteTime, File.GetLastWriteTimeUtc(sourceFile));
-                Assert.AreEqual(lastWriteTime, File.GetLastWriteTimeUtc(destFile.FullName));
 
                 // Run command
                 var cmd = GetCommand(sourceDir, destDir);
-                cmd.SelectionOptions.ExcludeChanged = value;
+
+                cmd.SelectionOptions.ExcludeLonely = excludeLonely;
+                cmd.CopyOptions.CopySubdirectories = recursive;
+
                 var results = await RunCommand(cmd);
                 Assert.IsNotNull(results);
-                try 
-                {
-                    Assert.AreEqual(value ? 0 : 1, results.FilesStatistic.Copied);
-                    Assert.AreEqual(value ? 1 : 0, results.FilesStatistic.Skipped);
-                }
-                catch
-                {
-                    Console.WriteLine(String.Join(Environment.NewLine, results.LogLines));
-                    throw;
-                }
+
+                AssertResults(results, nameof(Test_Selection_ExcludeLonely),
+                    expectedDirTotal: excludeLonely || recursive ? 2 : 1,
+                    expectedDirCopied: recursive && !excludeLonely ? 1 : 0,
+                    expectedDirExtras: 0,
+                    expectedDirSkipped: excludeLonely ? 2 : 1,
+                    expectedFileTotal: excludeLonely ? 1 : recursive ? 2 : 1,
+                    expectedFileCopied: excludeLonely ? 0 : recursive ? 2 : 1,
+                    expectedFileExtras: 0,
+                    expectedFileSkipped: excludeLonely ? 1 : 0); // loney dir is skipped, so lonely file never evaluated
+
+                Assert.AreEqual(!excludeLonely, File.Exists(Path.Combine(destDir, Path.GetFileName(sourceFile))), "\n >> File should not have been copied.");
+                Assert.AreEqual(recursive && !excludeLonely, Directory.Exists(Path.Combine(destDir, "SubDir")), "\n >> SubDirectory should not have been created.");
+                Assert.AreEqual(recursive && !excludeLonely, File.Exists(Path.Combine(destDir, "SubDir", Path.GetFileName(sourceFile))), "\n >> File should not have been copied.");
+            }
+            finally
+            {
+                try { Directory.Delete(sourceDir, true); } catch { }
+            }
+        }
+
+        [TestMethod]
+        [DataRow(true, true, DisplayName = "Exclude Newer - Recursive")]
+        [DataRow(true, false, DisplayName = "Exclude Newer - Depth = 1")]
+        [DataRow(false, false, DisplayName = "Copy - Depth = 1")]
+        [DataRow(false, true, DisplayName = "Copy - Recursive")]
+        public async Task Test_Selection_ExcludeNewer(bool excludeNewer, bool recursive)
+        {
+            (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
+            string destDir = TempDest;
+            try
+            {
+                // Setup Destination Directories with files
+                string destFile = Path.Combine(destDir, Path.GetFileName(sourceFile));
+                string destChild = Path.Combine(destDir, "SubDir");
+                string destChildFile = Path.Combine(destChild, "new.txt");
+                Directory.CreateDirectory(destChild);
+                File.WriteAllText(destChildFile, "test");
+                File.WriteAllText(destFile, "test");
+
+                // setup source files so that they are newer
+                string sourceChildFile = Path.Combine(sourceDir, "SubDir", "new.txt");
+                Directory.CreateDirectory(Path.Combine(sourceDir, "SubDir"));
+                File.WriteAllText(sourceFile, "test");
+                File.WriteAllText(sourceChildFile, "test");
+                File.WriteAllText(Path.Combine(sourceDir, "AlwaysCopied.txt"), "This file does not exist in destination. It should be copied.");
+
+                // update date times
+                var culture = new CultureInfo("en-US");
+                File.SetLastWriteTimeUtc(destFile, DateTime.Parse("2025/04/10 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(destChildFile, DateTime.Parse("2025/01/01 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(sourceFile, DateTime.Parse("2026/04/10 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(sourceChildFile, DateTime.Parse("2026/01/01 10:00:00 AM", culture));
+
+                var sourceFileInfo = new FileInfo(sourceFile);
+                var destFileInfo = new FileInfo(destFile);
+
+                Assert.AreEqual(sourceFileInfo.Length, destFileInfo.Length);
+                Assert.AreEqual(sourceFileInfo.Attributes, destFileInfo.Attributes);
+                Assert.IsLessThan(sourceFileInfo.LastWriteTimeUtc, destFileInfo.LastWriteTimeUtc);
+
+                var expectedDestFileDateTime = File.GetLastWriteTimeUtc(excludeNewer ? destFile : sourceFile);
+                var expectedChildFileDateTime = File.GetLastWriteTimeUtc(excludeNewer || !recursive ? destChildFile : sourceChildFile);
+
+                // Run command
+                var cmd = GetCommand(sourceDir, destDir);
+
+                cmd.CopyOptions.CopySubdirectories = recursive;
+                cmd.SelectionOptions.ExcludeNewer = excludeNewer;
+
+                var results = await RunCommand(cmd);
+                Assert.IsNotNull(results);
+
+                AssertResults(results, nameof(Test_Selection_ExcludeNewer),
+                    expectedDirTotal: recursive ? 2 : 1,
+                    expectedDirCopied: 0,
+                    expectedDirExtras: 0,
+                    expectedDirSkipped: recursive ? 2 : 1,
+                    expectedFileTotal: 1 + (recursive ? 2 : 1),
+                    expectedFileCopied: 1 + (excludeNewer ? 0 : recursive ? 2 : 1),
+                    expectedFileExtras: 0,
+                    expectedFileSkipped: !excludeNewer ? 0 : recursive ? 2 : 1);
+
+                const string format = "\n >> Expected : {0}, \n >>   Actual : {1}";
+                Assert.AreEqual(expectedDestFileDateTime, File.GetLastWriteTimeUtc(destFile), string.Format(format, expectedDestFileDateTime, File.GetLastWriteTimeUtc(destFile)));
+                Assert.AreEqual(expectedChildFileDateTime, File.GetLastWriteTimeUtc(destChildFile), string.Format(format, expectedChildFileDateTime, File.GetLastWriteTimeUtc(destChildFile)));
+            }
+            finally
+            {
+                try { Directory.Delete(sourceDir, true); } catch { }
+            }
+        }
+
+        [TestMethod]
+        [DataRow(true, true, DisplayName = "Exclude Older - Recursive")]
+        [DataRow(true, false, DisplayName = "Exclude Older - Depth = 1")]
+        [DataRow(false, false, DisplayName = "Copy - Depth = 1")]
+        [DataRow(false, true, DisplayName = "Copy - Recursive")]
+        public async Task Test_Selection_ExcludeOlder(bool excludeOlder, bool recursive)
+        {
+            (string sourceDir, string sourceFile) = Test_Setup.GetNewTempPathWithChild();
+            string destDir = TempDest;
+            try
+            {
+                // Setup Destination Directories with files
+                string destFile = Path.Combine(destDir, Path.GetFileName(sourceFile));
+                string destChild = Path.Combine(destDir, "SubDir");
+                string destChildFile = Path.Combine(destChild, "new.txt");
+                Directory.CreateDirectory(destChild);
+                File.WriteAllText(destChildFile, "test");
+                File.WriteAllText(destFile, "test");
+
+                // setup source files so that they are newer
+                string sourceChildFile = Path.Combine(sourceDir, "SubDir", "new.txt");
+                Directory.CreateDirectory(Path.Combine(sourceDir, "SubDir"));
+                File.WriteAllText(sourceFile, "test");
+                File.WriteAllText(sourceChildFile, "test");
+
+                // update date times
+                var culture = new CultureInfo("en-US");
+                File.SetLastWriteTimeUtc(sourceFile, DateTime.Parse("2025/04/10 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(sourceChildFile, DateTime.Parse("2025/01/01 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(destFile, DateTime.Parse("2026/04/10 10:00:00 AM", culture));
+                File.SetLastWriteTimeUtc(destChildFile, DateTime.Parse("2026/01/01 10:00:00 AM", culture));
+
+                var sourceFileInfo = new FileInfo(sourceFile);
+                var destFileInfo = new FileInfo(destFile);
+
+                Assert.AreEqual(sourceFileInfo.Length, destFileInfo.Length);
+                Assert.AreEqual(sourceFileInfo.Attributes, destFileInfo.Attributes);
+                Assert.IsGreaterThan(sourceFileInfo.LastWriteTimeUtc, destFileInfo.LastWriteTimeUtc);
+
+                var expectedDestFileDateTime = File.GetLastWriteTimeUtc(excludeOlder ? destFile : sourceFile);
+                var expectedChildFileDateTime = File.GetLastWriteTimeUtc(excludeOlder || !recursive ? destChildFile : sourceChildFile);
+
+                // Run command
+                var cmd = GetCommand(sourceDir, destDir);
+
+                cmd.CopyOptions.CopySubdirectories = recursive;
+                cmd.SelectionOptions.ExcludeOlder = excludeOlder;
+
+                var results = await RunCommand(cmd);
+                Assert.IsNotNull(results);
+
+                AssertResults(results, nameof(Test_Selection_ExcludeOlder),
+                    expectedDirTotal: recursive ? 2 : 1,
+                    expectedDirCopied: 0,
+                    expectedDirExtras: 0,
+                    expectedDirSkipped: recursive ? 2 : 1,
+                    expectedFileTotal: recursive ? 2 : 1,
+                    expectedFileCopied: excludeOlder ? 0 : recursive ? 2 : 1,
+                    expectedFileExtras: 0,
+                    expectedFileSkipped: !excludeOlder ? 0 : recursive ? 2 : 1);
+
+                const string format = "\n >> Expected : {0}, \n >>   Actual : {1}";
+                Assert.AreEqual(expectedDestFileDateTime, File.GetLastWriteTimeUtc(destFile), string.Format(format, expectedDestFileDateTime, File.GetLastWriteTimeUtc(destFile)));
+                Assert.AreEqual(expectedChildFileDateTime, File.GetLastWriteTimeUtc(destChildFile), string.Format(format, expectedChildFileDateTime, File.GetLastWriteTimeUtc(destChildFile)));
             }
             finally
             {
