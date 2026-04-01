@@ -99,7 +99,7 @@ namespace RoboSharp.Extensions
             StartDate = DateTime.Now;
 
 
-            bool hidden = Destination.Attributes > 0  && Destination.Attributes.HasFlag(FileAttributes.Hidden);
+            bool hidden = Destination.Attributes.IsHidden();
             try
             {
                 Destination.Directory.Create();

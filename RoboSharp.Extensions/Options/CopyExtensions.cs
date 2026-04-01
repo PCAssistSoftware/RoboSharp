@@ -60,7 +60,7 @@ namespace RoboSharp.Extensions.Options
             flag.HasFlag(CopyActionFlags.Mirror);
 
         /// <summary>
-        /// Evaluates the <paramref name="options"/> to check if any of the PURGE options are enabled
+        /// Evaluates the <paramref name="command"/> to check if any of the PURGE options are enabled
         /// </summary>
         public static bool IsPurging(this IRoboCommand command) =>
             command.SelectionOptions.ExcludeExtra is false

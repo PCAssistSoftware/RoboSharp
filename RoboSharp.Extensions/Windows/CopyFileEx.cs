@@ -172,6 +172,9 @@ namespace RoboSharp.Extensions.Windows
                 _cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(token);
                 Destination.Directory.Create();
 
+                if (overwrite && Destination.Attributes.IsHidden())
+                    Destination.Attributes &= ~FileAttributes.Hidden; // unhide to allow overwriting - this is required as CopyFileEx will fail if the destination is hidden
+
                 copyTask = Task.Run(async () =>
                 {
                     LPPROGRESS_ROUTINE callback = CreateCallbackInternal(progressRecorder, CancellationToken.None);

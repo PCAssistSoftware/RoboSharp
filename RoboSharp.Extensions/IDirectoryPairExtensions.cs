@@ -115,7 +115,7 @@ namespace RoboSharp.Extensions
             if (pair.IsLonely())
             {
                 info.SetDirectoryClass(ProcessedDirectoryFlag.NewDir, command.Configuration);
-                return true;
+                return !command.SelectionOptions.ExcludeLonely;
             }
 
             info.SetDirectoryClass(ProcessedDirectoryFlag.ExistingDir, command.Configuration);
@@ -129,10 +129,17 @@ namespace RoboSharp.Extensions
         /// <see langword="true"/> if one path leads to a directory while the other path leads to a file. 
         /// <br/> otherwise <see langword="false"/> 
         /// </returns>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public static bool IsMismatch(FileSystemInfo source, FileSystemInfo destination)
         {
             return (source.Attributes > 0 && destination.Attributes > 0) && ((source.Attributes ^ destination.Attributes) & FileAttributes.Directory) != 0;
         }
+
+        /// <summary>
+        /// Check for <see cref="FileAttributes.Hidden"/>
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        internal static bool IsHidden(this FileAttributes attributes) => attributes > 0 && attributes.HasFlag(FileAttributes.Hidden);
 
         /// <summary>
         /// Refreshes both the <see cref="IDirectoryPair.Source"/> and <see cref="IDirectoryPair.Destination"/> objects

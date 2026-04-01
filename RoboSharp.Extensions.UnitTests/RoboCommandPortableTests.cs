@@ -17,37 +17,114 @@ using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Tests
 {
-    /// <summary>
-    /// Test the <see cref="RoboCommandPortable"/> object
-    /// </summary>
-    [TestClass]
-    public class RoboCommandPortable_EventTests : RoboSharp.UnitTests.RoboCommandEventTests
-    {
-        protected override IRoboCommand GenerateCommand(bool UseLargerFileSet, bool ListOnlyMode)
-        {
-            var rc = RoboSharp.UnitTests.Test_Setup.GenerateCommand(false, true);
-            var command = new RoboCommandPortable(RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
-            {
-                CopyOptions = rc.CopyOptions,
-                SelectionOptions = rc.SelectionOptions,
-                RetryOptions = rc.RetryOptions,
-                LoggingOptions = rc.LoggingOptions,
-                Configuration = rc.Configuration,
-            };
-            return command;
-        }
-    }
-
     
     /// <summary>
     /// <br/> Runs the full <see cref="CommandTests{T}"/> suite against <see cref="RoboCommandPortable"/>.
     /// <br/> Failures here indicate bugs in the portable implementation, not in the test expectations (which are validated by <see cref="CommandTests"/>).
     /// </summary>
     [TestClass]
-    public class RoboCommandPortable_CommandTests : CommandTests<RoboCommandPortable>
+    public class RoboCommandPortable_StreamedCopier_CommandTests : RoboCommandPortable_CommandTestsBase
     {
         protected override RoboCommandPortable GetCommand() => new RoboCommandPortable(StreamedCopierFactory.DefaultFactory);
     }
+
+#if WINDOWS || NETFRAMEWORK
+    [TestClass]
+    public class RoboCommandPortable_CopyFileEx_CommandTests : RoboCommandPortable_CommandTestsBase
+    {
+        protected override RoboCommandPortable GetCommand() => new RoboCommandPortable(new Windows.CopyFileExFactory());
+    }
+#endif
+
+
+    public abstract class RoboCommandPortable_CommandTestsBase : CommandTests<RoboCommandPortable>
+    {
+        [TestMethod]
+        [Timeout(10000, CooperativeCancellation = true)]
+        [DataRow(CopyActionFlags.MoveFiles)]
+        [DataRow(CopyActionFlags.MoveFiles | CopyActionFlags.Purge)]
+        [DataRow(CopyActionFlags.MoveFilesAndDirectories)]
+        [DataRow(CopyActionFlags.MoveFilesAndDirectories | CopyActionFlags.Purge)]
+        public async Task Test_Purge_Validation(CopyActionFlags copyOptions)
+        {
+            var obj = new RoboSharp.UnitTests.CommandTests() { TestContext = this.TestContext };
+            obj.TestInit();
+            var source = await obj.PrepMoveSource();
+
+            try
+            {
+                var rm = new RoboCommandPortable(StreamedCopierFactory.DefaultFactory)
+                {
+                    CopyOptions = new CopyOptions()
+                    {
+                        Source = source,
+                        Destination = base.TempDest,
+                    },
+                };
+
+                rm.CopyOptions.ApplyActionFlags(CopyActionFlags.CopySubdirectoriesIncludingEmpty | copyOptions);
+                rm.SelectionOptions.ApplySelectionFlags(SelectionFlags.Default);
+                rm.LoggingOptions.ApplyLoggingFlags(LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader | LoggingFlags.ListOnly);
+
+                string subfolderpath = @"SubFolder_1\SubFolder_1.1\SubFolder_1.2";
+                FilePair[] SourceFiles = new FilePair[] {
+                new FilePair(Path.Combine(rm.CopyOptions.Source, "4_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, "4_Bytes.txt")),
+                new FilePair(Path.Combine(rm.CopyOptions.Source, "1024_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, "1024_Bytes.txt")),
+                new FilePair(Path.Combine(rm.CopyOptions.Source, subfolderpath, "0_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, subfolderpath, "0_Bytes.txt")),
+                new FilePair(Path.Combine(rm.CopyOptions.Source, subfolderpath, "4_Bytes.htm"), Path.Combine(rm.CopyOptions.Destination, subfolderpath, "4_Bytes.htm")),
+            };
+                FileInfo[] purgeFiles = new FileInfo[]
+                {
+                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFile_1.txt")),
+                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFile_2.txt")),
+                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFolder_1", "PurgeFile_3.txt")),
+                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFolder_2", "SubFolder","PurgeFile_4.txt")),
+                };
+                DirectoryInfo[] PurgeDirectories = new DirectoryInfo[]
+                {
+                purgeFiles[2].Directory,
+                purgeFiles[3].Directory,
+                purgeFiles[3].Directory.Parent,
+                };
+
+                foreach (var dir in PurgeDirectories) Directory.CreateDirectory(dir.FullName);
+                foreach (var file in purgeFiles) File.WriteAllText(file.FullName, "PURGE ME");
+
+                await rm.Start();
+                foreach (var lin in rm.GetResults().LogLines)
+                    Console.WriteLine(lin);
+
+                bool purge = rm.CopyOptions.Purge;
+                // Evaluate purged
+                foreach (var file in purgeFiles)
+                {
+                    file.Refresh();
+                    Assert.AreEqual(purge, !file.Exists, purge ? "\n >> File was not purged." : "\n >> File was purged unexpectedly.");
+                }
+                foreach (var dir in PurgeDirectories)
+                {
+                    dir.Refresh();
+                    Assert.AreEqual(purge, !dir.Exists, purge ? "\n >> Directory was not purged." : "\n >> Directory was purged unexpectedly.");
+                }
+                //evaluate moved
+                foreach (var filepair in SourceFiles)
+                {
+                    filepair.Refresh();
+                    Assert.IsTrue(filepair.Destination.Exists);
+                    Assert.IsTrue(filepair.IsExtra(), string.Format("\n >> Source:{0}\nDestination:{1}\nFile was not moved to destination directory.", filepair.Source, filepair.Destination));
+                }
+                bool moveDirectories = rm.CopyOptions.MoveFilesAndDirectories;
+                Assert.AreEqual(moveDirectories, SourceFiles[2].Parent.IsExtra(), moveDirectories ? "\n >> Directory was not moved" : "\n >> Directory was moved unexpectedly.");
+                Assert.AreEqual(moveDirectories, SourceFiles[3].Parent.IsExtra(), moveDirectories ? "\n >> Directory was not moved" : "\n >> Directory was moved unexpectedly.");
+            }
+            finally
+            {
+                obj.TestCleanup();
+                try { Directory.Delete(source, true); } catch { }
+            }
+        }
+    }
+    
 
     /// <summary>
     /// Validate that the command works the same as robocopy
@@ -60,14 +137,12 @@ namespace RoboSharp.Extensions.Tests
         /// </summary>
         public TestContext TestContext { get; set; }
 
-        const LoggingFlags DefaultLoggingAction = LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader;
-        const LoggingFlags ListOnlyLoggingAction = LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader | LoggingFlags.ListOnly;
 
         private static RoboCommandPortable GetCommand(RoboCommand rc, IFileCopierFactory factory = null)
         {
             return new RoboCommandPortable(factory ?? RoboSharp.Extensions.StreamedCopierFactory.DefaultFactory)
             {
-                CopyOptions = rc.CopyOptions,
+                CopyOptions = new CopyOptions(rc.CopyOptions),
                 SelectionOptions = rc.SelectionOptions,
                 RetryOptions = rc.RetryOptions,
                 LoggingOptions = rc.LoggingOptions,
@@ -88,14 +163,7 @@ namespace RoboSharp.Extensions.Tests
         }
 
 
-        [TestMethod]
-        [Timeout(1000, CooperativeCancellation = true)]
-        [DataRow(true, @"C:\SomeDir")]
-        [DataRow(false, @"D:\System Volume Information")]
-        public void IsAllowedDir(bool expected, string path)
-        {
-            Assert.AreEqual(expected, RoboMover.IsAllowedRootDirectory(new DirectoryInfo(path)));
-        }
+
 
         private const CopyActionFlags Mov_ = CopyActionFlags.MoveFiles;
         private const CopyActionFlags Move = CopyActionFlags.MoveFilesAndDirectories;
@@ -172,10 +240,22 @@ namespace RoboSharp.Extensions.Tests
 
         private async Task RunCopyTest(CopyActionFlags copyFlags, LoggingFlags loggingFlags, SelectionFlags selectionFlags, int maxDepth = 0)
         {
+            var obj = new RoboSharp.UnitTests.CommandTests() { TestContext = this.TestContext };
+            obj.TestInit();
+            var rcSource = await obj.PrepMoveSource();
+            obj.TestInit();
+            var rmSource = await obj.PrepMoveSource();
+
             try
             {
                 var rc = TestPrep.GetRoboCommand(false, copyFlags, selectionFlags, loggingFlags);
                 var crc = GetCommand(rc);
+
+                rc.CopyOptions.Source = rcSource;
+                rc.CopyOptions.Destination = Test_Setup.GetNewTempPath();
+
+                crc.CopyOptions.Source = rmSource;
+                crc.CopyOptions.Destination = Test_Setup.GetNewTempPath();
 
                 bool listOnly = loggingFlags.HasFlag(LoggingFlags.ListOnly);
                 Assert.AreEqual(listOnly, rc.LoggingOptions.ListOnly);
@@ -193,169 +273,7 @@ namespace RoboSharp.Extensions.Tests
             catch (OperationCanceledException) when (TestContext.CancellationToken.IsCancellationRequested)
             { }
         }
-
         
-
-        
-
-        private static void GetMoveCommands(CopyActionFlags copyFlags, SelectionFlags selectionFlags, LoggingFlags loggingFlags, out RoboCommand rc, out RoboCommandPortable rm)
-        {
-            rc = TestPrep.GetRoboCommand(false, copyFlags, selectionFlags, loggingFlags);
-            rc.CopyOptions.Source = TestPrep.GetMoveSource();
-            rm = GetCommand(rc, Mocks.MockFileCopierFactory.Instance);
-        }
-
-
-
-
-
-        [TestMethod]
-        [Timeout(5000, CooperativeCancellation = true)]
-        [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files")]
-        [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction }, DisplayName = "Move Files and Directories")]
-        [DataRow(data: new object[] { Mov_, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files")]
-        [DataRow(data: new object[] { Move, SelectionFlags.Default, DefaultLoggingAction | LoggingFlags.ListOnly }, DisplayName = "ListOnly | Move Files and Directories")]
-        public async Task SameFileTest(object[] flags) //CopyActionFlags copyAction, SelectionFlags selectionFlags, LoggingFlags loggingAction
-        {
-            if (Test_Setup.IsRunningOnAppVeyor()) return;
-            GetMoveCommands((CopyActionFlags)flags[0], (SelectionFlags)flags[0], (LoggingFlags)flags[2], out var rc, out var rm);
-            bool listOnly = rc.LoggingOptions.ListOnly;
-            var results1 = await TestPrep.RunTests(rc, rm, !listOnly, CreateFile, TestContext.CancellationToken);
-            TestPrep.CompareTestResults(results1[0], results1[1], listOnly);
-
-            static async Task CreateFile(CancellationToken token)
-            {
-                await TestPrep.PrepMoveFiles(token);
-                Directory.CreateDirectory(TestPrep.DestDirPath);
-                string dest = Path.Combine(TestPrep.DestDirPath, Path.GetRandomFileName());
-                File.WriteAllText(dest, "!!!!This is an extra File!!!!");                
-                Assert.IsTrue(File.Exists(dest));
-            }
-        }
-
-        [TestMethod]
-        //[Timeout(5000, CooperativeCancellation = true)]
-        // purge all
-        [DataRow(0, true, Move)]
-        [DataRow(0, true, Copy)]
-        [DataRow(0, true, CopyEmpty)]
-        [DataRow(0, true, Mov_ | CopyActionFlags.CopySubdirectories)]
-        [DataRow(0, true, Move | CopyActionFlags.CopySubdirectories)]
-        [DataRow(0, true, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [DataRow(0, true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [DataRow(0, true, Mov_, LoggingFlags.ReportExtraFiles)]
-        [DataRow(0, true, Mov_ | CopyActionFlags.CopySubdirectories, LoggingFlags.ReportExtraFiles)]
-        [DataRow(0, true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty, LoggingFlags.ReportExtraFiles)]
-        // purge depth 1 
-        [DataRow(1, true, Mov_)]
-        [DataRow(1, true, Move)]
-        [DataRow(1, true, Mov_ | CopyActionFlags.CopySubdirectories)]
-        [DataRow(1, true, Move | CopyActionFlags.CopySubdirectories)]
-        [DataRow(1, true, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [DataRow(1, true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        // purge depth 2
-        [DataRow(2, true, Mov_)]
-        [DataRow(2, false, Move)]
-        [DataRow(2, true, Mov_ | CopyActionFlags.CopySubdirectories)]
-        [DataRow(2, true, Move | CopyActionFlags.CopySubdirectories)]
-        [DataRow(2, false, Mov_ | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [DataRow(2, false, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty)]
-        [DataRow(2, true, Mov_, LoggingFlags.ReportExtraFiles)]
-        [DataRow(2, true, Mov_ | CopyActionFlags.CopySubdirectories, LoggingFlags.ReportExtraFiles)]
-        [DataRow(2, true, Move | CopyActionFlags.CopySubdirectoriesIncludingEmpty, LoggingFlags.ReportExtraFiles)]
-        // purge 3
-        [DataRow(3, true, Move)]
-        [DataRow(3, true, Copy)]
-        [DataRow(3, true, CopyEmpty)]
-        // purge 3
-        [DataRow(0, true, Purge)]
-        [DataRow(1, true, Purge)]
-        [DataRow(3, true, Purge)]
-        public async Task Test_Copy_Depth(int depth, bool listOnly, CopyActionFlags flags, LoggingFlags? loggs = null)
-        {
-            LoggingFlags log = loggs.HasValue ? loggs.Value | DefaultLoggingAction : DefaultLoggingAction;
-            GetMoveCommands(flags, SelectionFlags.Default, log, out var cmd, out var implementation);
-            cmd.LoggingOptions.ListOnly = listOnly;
-            cmd.CopyOptions.Depth = depth;
-            Assert.AreSame(cmd.CopyOptions, implementation.CopyOptions);
-            await RunSelectionTests(cmd, implementation, TestContext.CancellationToken);
-        }
-
-        private static async Task RunSelectionTests(RoboCommand cmd, RoboCommandPortable implementation, CancellationToken token)
-        {
-            //if (Test_Setup.IsRunningOnAppVeyor()) return;
-            var results = await TestPrep.RunTests(cmd, implementation, !cmd.LoggingOptions.ListOnly, TestPrep.CreateExtraDirectories, token);
-            TestPrep.CompareTestResults(results[0], results[1], cmd.LoggingOptions.ListOnly);
-        }
-
-
-        [TestMethod]
-        [Timeout(10000, CooperativeCancellation = true)]
-        [DataRow(CopyActionFlags.MoveFiles)]
-        [DataRow(CopyActionFlags.MoveFiles | CopyActionFlags.Purge)]
-        [DataRow(CopyActionFlags.MoveFilesAndDirectories)]
-        [DataRow(CopyActionFlags.MoveFilesAndDirectories | CopyActionFlags.Purge)]
-        public async Task PurgeTests(CopyActionFlags copyOptions)
-        {
-            GetMoveCommands(
-                CopyActionFlags.CopySubdirectoriesIncludingEmpty | copyOptions,
-                SelectionFlags.Default,
-                DefaultLoggingAction,
-                out _, out var rm);
-            Test_Setup.ClearOutTestDestination();
-            await TestPrep.PrepMoveFiles(TestContext.CancellationToken);
-
-            string subfolderpath = @"SubFolder_1\SubFolder_1.1\SubFolder_1.2";
-            FilePair[] SourceFiles = new FilePair[] {
-                new FilePair(Path.Combine(rm.CopyOptions.Source, "4_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, "4_Bytes.txt")),
-                new FilePair(Path.Combine(rm.CopyOptions.Source, "1024_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, "1024_Bytes.txt")),
-                new FilePair(Path.Combine(rm.CopyOptions.Source, subfolderpath, "0_Bytes.txt"), Path.Combine(rm.CopyOptions.Destination, subfolderpath, "0_Bytes.txt")),
-                new FilePair(Path.Combine(rm.CopyOptions.Source, subfolderpath, "4_Bytes.htm"), Path.Combine(rm.CopyOptions.Destination, subfolderpath, "4_Bytes.htm")),
-            };
-            FileInfo[] purgeFiles = new FileInfo[]
-            {
-                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFile_1.txt")),
-                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFile_2.txt")),
-                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFolder_1", "PurgeFile_3.txt")),
-                new FileInfo(Path.Combine(rm.CopyOptions.Destination, "PurgeFolder_2", "SubFolder","PurgeFile_4.txt")),
-            };
-            DirectoryInfo[] PurgeDirectories = new DirectoryInfo[]
-            {
-                purgeFiles[2].Directory,
-                purgeFiles[3].Directory,
-                purgeFiles[3].Directory.Parent,
-            };
-
-            foreach (var dir in PurgeDirectories) Directory.CreateDirectory(dir.FullName);
-            foreach (var file in purgeFiles) File.WriteAllText(file.FullName, "PURGE ME");
-
-            await rm.Start();
-            foreach (var lin in rm.GetResults().LogLines)
-                Console.WriteLine(lin);
-
-            bool purge = rm.CopyOptions.Purge;
-            // Evaluate purged
-            foreach (var file in purgeFiles)
-            {
-                file.Refresh();
-                Assert.AreEqual(purge, !file.Exists, purge ? "File was not purged." : "File was purged unexpectedly.");
-            }
-            foreach (var dir in PurgeDirectories)
-            {
-                dir.Refresh();
-                Assert.AreEqual(purge, !dir.Exists, purge ? "Directory was not purged." : "Directory was purged unexpectedly.");
-            }
-            //evaluate moved
-            foreach (var filepair in SourceFiles)
-            {
-                filepair.Refresh();
-                Assert.IsTrue(filepair.IsExtra(), string.Format("\nSource:{0}\nDestination:{1}\nFile was not moved to destination directory.", filepair.Source, filepair.Destination));
-            }
-            bool moveDirectories = rm.CopyOptions.MoveFilesAndDirectories;
-            Assert.AreEqual(moveDirectories, SourceFiles[2].Parent.IsExtra(), moveDirectories ? "Directory was not moved" : "Directory was moved unexpectedly.");
-            Assert.AreEqual(moveDirectories, SourceFiles[3].Parent.IsExtra(), moveDirectories ? "Directory was not moved" : "Directory was moved unexpectedly.");
-
-        }
     }
 }
 #endif

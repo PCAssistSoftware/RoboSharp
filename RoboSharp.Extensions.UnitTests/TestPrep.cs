@@ -223,39 +223,14 @@ namespace RoboSharp.Extensions.Tests
             }
         }
 
-
-        public static string GetMoveSource()
+        public static async Task CreateExtraDirectories(string rootDir, CancellationToken token)
         {
-            string original = TestPrep.SourceDirPath;
-            return Path.Combine(original.Replace(Path.GetFileName(original), ""), "MoveSource");
-        }
-
-        public static async Task PrepMoveFiles(CancellationToken token)
-        {
-            token.ThrowIfCancellationRequested();
-            var rc = TestPrep.GetRoboCommand(false, CopyActionFlags.CopySubdirectoriesIncludingEmpty, SelectionFlags.Default, LoggingFlags.RoboSharpDefault | LoggingFlags.NoJobHeader);
-            rc.CopyOptions.Destination = GetMoveSource();
-            Directory.CreateDirectory(rc.CopyOptions.Destination);
-            token.Register(() => rc.Stop());
-            await rc.Start();
-            var results = rc.GetResults();
-            if (results.RoboCopyErrors.Length > 0)
-                throw new Exception(
-                    "Prep Failed  \n" +
-                    string.Concat(args: results.RoboCopyErrors.Select(e => "\n RoboCommandError :\t" + e.GetType() + "\t" + e.ErrorDescription + "\t:\t" + e.ErrorPath).ToArray()) +
-                    "\n"
-                    );
-        }
-
-        public static async Task CreateExtraDirectories(CancellationToken token)
-        {
-            await PrepMoveFiles(token);
             token.ThrowIfCancellationRequested();
             RoboCommand prep = new RoboCommand();
             token.Register(() => prep.Stop());
 
             prep.CopyOptions.Source = Path.Combine(Test_Setup.Source_Standard, "SubFolder_1");
-            prep.CopyOptions.Destination = Path.Combine(Test_Setup.TestDestination, "SubFolder_3");
+            prep.CopyOptions.Destination = Path.Combine(rootDir, "SubFolder_3");
             prep.CopyOptions.ApplyActionFlags(CopyActionFlags.CopySubdirectoriesIncludingEmpty);
             Directory.CreateDirectory(Path.Combine(prep.CopyOptions.Destination, "EmptyFolder1", "EmptyFolder2"));
             await prep.Start();

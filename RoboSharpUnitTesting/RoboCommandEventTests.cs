@@ -93,7 +93,7 @@ namespace RoboSharp.UnitTests
         //    var cmd = GenerateCommand(false, true);
         //    bool TestPassed = false;
         //    cmd.TaskFaulted += (o, e) => TestPassed = true;
-        //    await RunTestThenAssert(cmd, () => TestPassed);
+        //    await RunEventTest(cmd, () => TestPassed);
         //}
 
     }

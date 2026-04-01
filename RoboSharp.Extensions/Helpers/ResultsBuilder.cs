@@ -365,6 +365,9 @@ namespace RoboSharp.Extensions.Helpers
         /// </summary>
         public virtual void CreateHeader()
         {
+            if (Command.LoggingOptions.NoJobHeader) 
+                return;
+
             List<string> header = new List<string>(24)
                 {
                     Divider,

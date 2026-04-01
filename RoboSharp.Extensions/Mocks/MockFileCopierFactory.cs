@@ -19,6 +19,11 @@ namespace RoboSharp.Extensions.Mocks
         public static MockFileCopierFactory Instance => instance ??= new();
         private static MockFileCopierFactory? instance;
 
+        /// <inheritdoc cref="MockIFileCopier.ReturnValue"/>
+        public bool DefaultReturnValue { get; set; } = true;
+        
+        /// <inheritdoc cref="MockIFileCopier.CopyDelay"/>
+        public TimeSpan DefaultCopyDelay { get; set; } = TimeSpan.Zero;
 
         public IFileCopier Create(FileInfo source, FileInfo destination, IDirectoryPair? parent)
         {
@@ -26,6 +31,8 @@ namespace RoboSharp.Extensions.Mocks
             {
                 Source = source,
                 Destination = destination,
+                ReturnValue = DefaultReturnValue, 
+                CopyDelay = DefaultCopyDelay,
                 Parent = new MockProcessedDirectoryPair() { Source = parent?.Source, Destination = parent?.Destination }
             };
         }
@@ -44,6 +51,8 @@ namespace RoboSharp.Extensions.Mocks
             {
                 Source = new FileInfo(source),
                 Destination = new FileInfo(Path.Combine( destination.FullName, source)),
+                ReturnValue = DefaultReturnValue,
+                CopyDelay = DefaultCopyDelay,
                 Parent = new MockProcessedDirectoryPair() { Source = parent?.Source, Destination = parent?.Destination }
             };
         }

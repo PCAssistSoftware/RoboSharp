@@ -229,7 +229,7 @@ namespace RoboSharp.UnitTests
         /// Copies the standard source tree into a fresh temp directory so that
         /// move operations have their own expendable copy to consume.
         /// </summary>
-        protected async Task<string> PrepMoveSource()
+        public async Task<string> PrepMoveSource()
         {
             string moveSource = Path.Combine(Path.GetTempPath(),"RoboSharp_MoveSource",typeof(T).Name,Guid.NewGuid().ToString("N"));
 
@@ -504,6 +504,87 @@ namespace RoboSharp.UnitTests
                 Assert.IsFalse(Directory.Exists(subDir1));
                 Assert.IsFalse(Directory.Exists(subDirWithFiles));
             }
+        }
+
+        private static async Task RunEventTest(IRoboCommand cmd, Func<bool> wasRaised)
+        {
+            Console.WriteLine($"Type of command : {cmd.GetType()}");
+            var results = await cmd.StartAsync();
+            Test_Setup.WriteLogLines(results);
+            if (!wasRaised()) throw new AssertFailedException("Subscribed Event was not Raised!");
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_OnCommandCompleted()
+        {
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = true;
+            bool TestPassed = false;
+            cmd.OnCommandCompleted += (o, e) => TestPassed = true;
+            await RunEventTest(cmd, () => TestPassed);
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_OnCommandError()
+        {
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = true;
+            cmd.CopyOptions.Source += "FolderDoesNotExist";
+            bool TestPassed = false;
+            cmd.OnCommandError += (o, e) => TestPassed = true;
+            await RunEventTest(cmd, () => TestPassed);
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_OnCopyProgressChanged()
+        {
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = false;
+            bool TestPassed = false;
+            cmd.OnCopyProgressChanged += (o, e) => TestPassed = true;
+            await RunEventTest(cmd, () => TestPassed);
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_OnError()
+        {
+            if (Test_Setup.IsRunningOnAppVeyor()) return;
+
+            //Create a file in the destination that would normally be copied, then lock it to force an error being generated.
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = false;
+            bool TestPassed = false;
+            cmd.OnError += (o, e) => TestPassed = true;
+            
+            Directory.CreateDirectory(TempDest);
+            using (var f = File.CreateText(Path.Combine(TempDest, "4_Bytes.txt")))
+            {
+                f.WriteLine("StartTest!");
+                Console.WriteLine("Expecting 1 File Failed!\n\n");
+                await RunEventTest(cmd, () => TestPassed);
+                f.Write("Success");
+            }
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_OnFileProcessed()
+        {
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = true;
+            bool TestPassed = false;
+            cmd.OnFileProcessed += (o, e) => TestPassed = true;
+            await RunEventTest(cmd, () => TestPassed);
+        }
+
+        [TestMethod]
+        public virtual async Task Test_Event_ProgressEstimatorCreated()
+        {
+            var cmd = GetCommand(SharedSource, TempDest);
+            cmd.LoggingOptions.ListOnly = true;
+
+            bool TestPassed = false;
+            cmd.OnProgressEstimatorCreated += (o, e) => TestPassed = true;
+            await RunEventTest(cmd, () => TestPassed);
         }
 
         // ════════════════════════════════════════════════════════════════════════

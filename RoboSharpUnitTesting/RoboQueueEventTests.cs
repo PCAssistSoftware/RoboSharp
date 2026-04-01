@@ -204,7 +204,7 @@ namespace RoboSharp.UnitTests
         //    var RQ = GenerateRQ(out RoboCommand cmd);
         //    bool TestPassed = false;
         //    RQ.TaskFaulted += (o, e) => TestPassed = true;
-        //    RunTestThenAssert(RQ, ref TestPassed);
+        //    RunEventTest(RQ, ref TestPassed);
         //    Assert.IsTrue(TestPassed);
         //}
 

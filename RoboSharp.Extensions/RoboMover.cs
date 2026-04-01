@@ -222,7 +222,7 @@ namespace RoboSharp.Extensions
                 size: 0);
 
             evaluateExtraFiles = CopyOptions.Purge | LoggingOptions.ReportExtraFiles | LoggingOptions.VerboseOutput;
-
+            resultsBuilder.CreateHeader();
             runningTask = Task.Run(() => ProcessDirectory(sourcePair, 1));
             await runningTask;
             return resultsBuilder.GetResults();
