@@ -53,14 +53,16 @@ namespace RoboSharp.Extensions.Tests
 
         public static void PrepSourceAndDest(IFileCopier copier, bool deleteDest = true)
         {
-            // Create a 8MB file for testing
-            long size = 1024L*1024 * 8;
+            // Create 32MB file for testing
+            long size = 1024L*1024 * 32;
             if (!copier.Source.Exists || copier.Source.Exists && copier.Source.Length < size)
             {
                 copier.Source.Directory.Create();
                 CreateDummyFile(copier.Source.FullName, (int)size);
-                copier.Source.Refresh();
+                
             }
+            copier.Source.Refresh();
+            Assert.AreEqual(size, copier.Source.Length);
             if (deleteDest && File.Exists(copier.Destination.FullName)) copier.Destination.Delete();
             copier.Destination.Directory.Create();
         }
