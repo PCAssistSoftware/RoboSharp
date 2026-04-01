@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,6 +41,9 @@ namespace RoboSharp
 #if NETFRAMEWORK
         public static readonly bool IsPlatformWindows = true;
 #else
+#if NET6_0_OR_GREATER
+        [SupportedOSPlatformGuard(nameof(OSPlatform.Windows))]
+#endif
         public static readonly bool IsPlatformWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 #endif
 

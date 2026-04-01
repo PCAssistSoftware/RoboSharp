@@ -11,60 +11,140 @@ using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Windows.UnitTests
 {
-    [TestClass()]
-    public class CopyFileExTests
+    [TestClass]
+    public class CopyFileExTests : IFileCopierTests<CopyFileExFactory>
     {
-        private static string GetRandomPath(bool inSubFolder = false) => inSubFolder ? Test_Setup.GetNewTempPathWithChild().file : Test_Setup.GetNewTempPath();
-
-
-        [TestMethod]
-        public void TestCancellationTokens()
+        protected override CopyFileExFactory GetFactory()
         {
-            // Cancelling the linked source does not cancel the input tokens
-            var cts_1 = new CancellationTokenSource();
-            var cts_2 = new CancellationTokenSource();
-            var cts_linked = CancellationTokenSource.CreateLinkedTokenSource(cts_1.Token, cts_2.Token);
-            Assert.IsFalse(cts_linked.IsCancellationRequested);
-            cts_linked.Cancel();
-            Assert.IsTrue(cts_linked.IsCancellationRequested);
-            Assert.IsFalse(cts_1.IsCancellationRequested);
-            Assert.IsFalse(cts_2.IsCancellationRequested);
-
-            // canceling a token that was an input causes linke to report as cancelled
-            cts_linked = CancellationTokenSource.CreateLinkedTokenSource(cts_1.Token, cts_2.Token);
-            Assert.IsFalse(cts_linked.IsCancellationRequested);
-            cts_1.Cancel();
-            Assert.IsTrue(cts_1.IsCancellationRequested);
-            Assert.IsFalse(cts_2.IsCancellationRequested);
-            Assert.IsTrue(cts_linked.IsCancellationRequested);
+            // use restartable mode to artifically slow down operations for copy operation tests
+            return new CopyFileExFactory() { Options = CopyFileExOptions.RESTARTABLE };
         }
 
-        [TestMethod()]
-        public async Task IFileCopierFactoryTests_CopyFileEx()
-        {
+        private Progress<ProgressUpdate> ProgressFull => new Progress<ProgressUpdate>();
+        private Progress<double> ProgressPercent => new Progress<double>();
+        private Progress<long> ProgressSize => new Progress<long>();
 
-            IFileCopierFactory factory = new CopyFileExFactory() { Options = CopyFileExOptions.NONE };
+        private void CreateDummyFile() => CreateDummyFile(Source, 1024 & 1024 * 20);
+
+        /// <summary>
+        /// Test the static method <see cref="CopyFileEx.CopyFile(string, string, CopyFileExOptions, CopyProgressCallback, CancellationToken)"/>
+        /// </summary>
+        [TestMethod]
+        public void CopyFileEx_CopyFile_SourceMissing()
+        {
             if (VersionManager.IsPlatformWindows)
-            {
-                await IFileCopierTests.RunTests(factory);
-            }
+                Assert.Throws<FileNotFoundException>(() => CopyFileEx.CopyFile(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, cancellationToken: TestContext.CancellationToken));
             else
-                await Assert.ThrowsAsync<PlatformNotSupportedException>(() => IFileCopierTests.RunTests(factory));
+                Assert.Throws<PlatformNotSupportedException>(() => CopyFileEx.CopyFile(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, cancellationToken: TestContext.CancellationToken));
         }
 
         [TestMethod]
-        public void CopyFileEx_ToDirectory()
+        public void CopyFileEx_CopyFile_Fail_IF_EXISTS()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+            File.WriteAllText(Source, " ");
+            File.WriteAllText(Destination, " ");
+            Assert.Throws<IOException>(() => CopyFileEx.CopyFile(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, cancellationToken: TestContext.CancellationToken), "\n >> Copy Operation Succeeded when CopyFileExOptions.FAIL_IF_EXISTS was set");
+        }
+
+        [TestMethod]
+        public void CopyFileEx_CopyFile_Overwrite()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+            File.WriteAllText(Source, "Source Text");
+            File.WriteAllText(Destination, "Destination Text");
+            Assert.AreEqual("Destination Text", File.ReadAllText(Destination));
+            Assert.IsTrue(CopyFileEx.CopyFile(Source, Destination, CopyFileExOptions.NONE, cancellationToken: TestContext.CancellationToken), "\n >> Copy Operation Failed when CopyFileExOptions.NONE was set");
+            Assert.AreEqual("Source Text", File.ReadAllText(Destination));
+        }
+
+        [TestMethod]
+        public void CopyFileEx_CopyFile_Callback_Cancellation()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+
+            bool callbackHit = false;
+            int callbackHitCount = 0;
+
+            // Cancellation
+            var cancelCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
+            {
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.CANCEL;
+            }, token: TestContext.CancellationToken);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            File.WriteAllText(Source, "Source Text");
+            
+            Assert.IsFalse(callbackHit);
+            Assert.Throws<OperationCanceledException>(() => CopyFileEx.CopyFile(Source, Destination, default, cancelCallback, TestContext.CancellationToken), "\nOperation was not cancelled");
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
+        }
+
+        [TestMethod]
+        public void CopyFileEx_CopyFile_Callback_Quiet()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+
+            bool callbackHit = false;
+            int callbackHitCount = 0;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            File.WriteAllText(Source, "Source Text");
+
+            var quietCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
+            {
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.QUIET;
+            }, token: TestContext.CancellationToken);
+            Assert.IsFalse(callbackHit);
+            Assert.IsTrue(CopyFileEx.CopyFile(Source, Destination, default, quietCallback, TestContext.CancellationToken));
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
+        }
+
+        [TestMethod]
+        public void CopyFileEx_CopyFile_Callback_Continue()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+
+            bool callbackHit = false;
+            int callbackHitCount = 0;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            File.WriteAllText(Source, "Source Text");
+
+            var continueCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
+            {
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.CONTINUE;
+            }, token: TestContext.CancellationToken);
+            Assert.IsFalse(callbackHit);
+            Assert.IsTrue(CopyFileEx.CopyFile(Source, Destination, default, continueCallback, TestContext.CancellationToken));
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.IsGreaterThanOrEqualTo(2, callbackHitCount, "\nCallback count incorrect");
+        }
+
+        [TestMethod]
+        public void CopyFileEx_CopyFile_CreatesDestinationDirectory()
         {
             if (!VersionManager.IsPlatformWindows) return;
 
             RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
-            string sourceFile = GetRandomPath();
-            string destFile = GetRandomPath(true);
-            string destFolder = Path.GetDirectoryName(destFile);
+            string sourceFile = Source;
+            string destFolder = Destination;
+            string destFile = Path.Combine(destFolder, "Target.txt");
 
             try
             {
-                Console.WriteLine(string.Format("Source: {0}\nDestination: {1}", sourceFile, destFile));
                 File.WriteAllText(sourceFile, "Test Contents");
                 // Verify test prep
                 Assert.IsTrue(File.Exists(sourceFile), "Source File not created!");
@@ -82,283 +162,192 @@ namespace RoboSharp.Extensions.Windows.UnitTests
             }
         }
 
+        /// <summary>
+        /// Test the static method <see cref="CopyFileEx.CopyFileAsync(string, string)"/>
+        /// </summary>
         [TestMethod]
-        public void CopyFileEx_CopyFile()
+        public async Task CopyFileEx_CopyFileAsync_SourceMissing()
+        {
+            if (VersionManager.IsPlatformWindows)
+            {
+                await Assert.ThrowsAsync<FileNotFoundException>(() => CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, token: TestContext.CancellationToken), "\n >> Test 1");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, TestContext.CancellationToken), "\n >> Test 2");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, false, TestContext.CancellationToken), "\n >> Test 3");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, true, TestContext.CancellationToken), "\n >> Test 4");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressFull, 100, true, TestContext.CancellationToken), "\n >> Test 5");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressPercent, 100, true, TestContext.CancellationToken), "\n >> Test 6");
+                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressSize, 100, true, TestContext.CancellationToken), "\n >> Test 7");
+            }
+            else
+                await Assert.ThrowsAsync<PlatformNotSupportedException>(() => CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, token: TestContext.CancellationToken));
+        }
+
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Fail_IF_EXISTS()
         {
             if (!VersionManager.IsPlatformWindows) return;
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
-            bool callbackHit = false;
-            int callbackHitCount = 0;
-            var sourceFile = GetRandomPath();
-            var destFile = GetRandomPath();
-            try
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+            File.WriteAllText(Source, " ");
+            File.WriteAllText(Destination, " ");
+
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.FAIL_IF_EXISTS, token: TestContext.CancellationToken), "\n >> Copy Operation Succeeded when CopyFileExOptions.FAIL_IF_EXISTS was set");
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, TestContext.CancellationToken), "\n >> Test 2");
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, false, TestContext.CancellationToken), "\n >> Test 3");
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressFull, 100, false, TestContext.CancellationToken), "\n >> Test 3");
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressPercent, 100, false, TestContext.CancellationToken), "\n >> Test 4");
+            await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, ProgressSize, 100, false, TestContext.CancellationToken), "\n >> Test 5");
+        }
+
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Overwrite()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(Source));
+            Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+            File.WriteAllText(Destination, "Destination Text");
+            
+            await Run(1, () => CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, token: TestContext.CancellationToken));
+            await Run(2, () =>  CopyFileEx.CopyFileAsync(Source, Destination, true, TestContext.CancellationToken));
+            await Run(3, () =>  CopyFileEx.CopyFileAsync(Source, Destination, ProgressFull, 100, true, TestContext.CancellationToken));
+            await Run(4, () =>  CopyFileEx.CopyFileAsync(Source, Destination, ProgressPercent, 100, true, TestContext.CancellationToken));
+            await Run(5, () =>  CopyFileEx.CopyFileAsync(Source, Destination, ProgressSize, 100, true, TestContext.CancellationToken));
+
+            async Task Run(int testNumber, Func< Task<bool>> copyTask)
             {
-                Console.WriteLine(string.Format("Source: {0}\nDestination: {1}", sourceFile, destFile));
-
-                // Source Missing Test
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-                Assert.Throws<FileNotFoundException>(() => CopyFileEx.CopyFile(sourceFile, destFile, CopyFileExOptions.FAIL_IF_EXISTS, cancellationToken: TestContext.CancellationToken));
-
-                // Prep for Fail_If_Exists Test
-                File.WriteAllText(sourceFile, "Test Contents");
-                File.WriteAllText(destFile, "Content to replace\n\nMoreContent");
-                Assert.IsTrue(File.Exists(sourceFile));
-                Assert.IsTrue(File.Exists(destFile));
-
-                // Fail_If_Exists -- Overwrite
-                Assert.Throws<IOException>(() => CopyFileEx.CopyFile(sourceFile, destFile, CopyFileExOptions.FAIL_IF_EXISTS, cancellationToken: TestContext.CancellationToken), "\nCopy Operation Succeeded when CopyFileExOptions.FAIL_IF_EXISTS was set");
-                Assert.IsTrue(CopyFileEx.CopyFile(sourceFile, destFile, CopyFileExOptions.NONE, cancellationToken: TestContext.CancellationToken), "\n Copy Operation Failed when CopyFileExOptions.NONE was set");
-
-                // Cancellation
-                var cancelCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.CANCEL;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                Assert.Throws<OperationCanceledException>(() => CopyFileEx.CopyFile(sourceFile, destFile, default, cancelCallback, TestContext.CancellationToken), "\nOperation was not cancelled");
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-
-                // Quiet
-                var quietCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.QUIET;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                Assert.IsTrue(CopyFileEx.CopyFile(sourceFile, destFile, default, quietCallback, TestContext.CancellationToken));
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-
-                // Continue
-                var continueCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.CONTINUE;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                Assert.IsTrue(CopyFileEx.CopyFile(sourceFile, destFile, default, continueCallback, TestContext.CancellationToken));
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.IsTrue(callbackHitCount >= 2, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-            }
-            finally
-            {
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-                if (File.Exists(destFile)) File.Delete(destFile);
+                string text = Path.GetRandomFileName();
+                File.WriteAllText(Source, text);
+                Assert.IsTrue(await copyTask(), $"\n >> Task Failed - Test {testNumber}");
+                Assert.AreEqual(text, File.ReadAllText(Destination), $"\n >> Destination contents are different - Test {testNumber}");
             }
         }
 
         [TestMethod]
-        public async Task CopyFileEx_CopyFileAsync()
+        public async Task CopyFileEx_CopyFileAsync_Callback_Cancel()
         {
             if (!VersionManager.IsPlatformWindows) return;
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
             bool callbackHit = false;
             int callbackHitCount = 0;
-            string sourceFile = GetRandomPath();
-            string destFile = GetRandomPath();
-            try
+
+            var cancelCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
             {
-                // Source Missing Test
-                Console.WriteLine(string.Format("Source: {0}\nDestination: {1}", sourceFile, destFile));
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, token: TestContext.CancellationToken));
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.CANCEL;
+            }, token: TestContext.CancellationToken);
 
-                // Prep for Fail_If_Exists Test
-                File.WriteAllText(sourceFile, "Test Contents");
-                File.WriteAllText(destFile, "Content to replace");
-                Assert.IsTrue(File.Exists(sourceFile));
-                Assert.IsTrue(File.Exists(destFile));
+            Assert.IsFalse(callbackHit);
+            CreateDummyFile();
+            await Assert.ThrowsAsync<OperationCanceledException>(async () => await CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, cancelCallback, TestContext.CancellationToken), "\nOperation was not cancelled");
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
+        }
 
-                // Fail_If_Exists -- Overwrite
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.FAIL_IF_EXISTS, token: TestContext.CancellationToken), "\nCopy Operation Succeeded when CopyFileExOptions.FAIL_IF_EXISTS was set");
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, token: TestContext.CancellationToken), "\n Copy Operation Failed when CopyFileExOptions.NONE was set");
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Callback_Quiet()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            bool callbackHit = false;
+            int callbackHitCount = 0;
 
-                // Cancellation
-                var cancelCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.CANCEL;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                await Assert.ThrowsAsync<OperationCanceledException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, cancelCallback, TestContext.CancellationToken), "\nOperation was not cancelled");
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-
-                // Quiet
-                var quietCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.QUIET;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, quietCallback, TestContext.CancellationToken));
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-
-                // Continue
-                var continueCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
-                {
-                    callbackHit = true;
-                    callbackHitCount++;
-                    return CopyProgressCallbackResult.CONTINUE;
-                }, token: TestContext.CancellationToken);
-                Assert.IsFalse(callbackHit);
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, continueCallback, TestContext.CancellationToken));
-                Assert.IsTrue(callbackHit, "\nCallback was not hit");
-                Assert.IsTrue(callbackHitCount >= 2, "\nCallback count incorrect");
-                callbackHit = false;
-                callbackHitCount = 0;
-            }
-            finally
+            var quietCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
             {
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-                if (File.Exists(destFile)) File.Delete(destFile);
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.QUIET;
+            }, token: TestContext.CancellationToken);
+
+            Assert.IsFalse(callbackHit);
+            CreateDummyFile();
+            Assert.IsTrue(await CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, quietCallback, TestContext.CancellationToken));
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.AreEqual(1, callbackHitCount, "\nCallback count incorrect");
+        }
+
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Callback_Continue()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            bool callbackHit = false;
+            int callbackHitCount = 0;
+
+            var continueCallback = FileFunctions.CreateCallback((ProgressUpdate b) =>
+            {
+                callbackHit = true;
+                callbackHitCount++;
+                return CopyProgressCallbackResult.CONTINUE;
+            }, token: TestContext.CancellationToken);
+
+            Assert.IsFalse(callbackHit);
+            CreateDummyFile(Source, 1024 * 1024 * 10);
+            Assert.IsTrue(await CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, continueCallback, TestContext.CancellationToken));
+            Assert.IsTrue(callbackHit, "\nCallback was not hit");
+            Assert.IsGreaterThanOrEqualTo(2, callbackHitCount, "\nCallback count incorrect");
+        }
+
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Cancelled_BeforeStart()
+        {
+            if (!VersionManager.IsPlatformWindows) return;
+            var cdToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+            cdToken.Cancel();
+            await Run(1, () => CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, token: cdToken.Token));
+            await Run(2, () => CopyFileEx.CopyFileAsync(Source, Destination, true, cdToken.Token));
+            await Run(3, () => CopyFileEx.CopyFileAsync(Source, Destination, ProgressFull, 100, true, cdToken.Token));
+            await Run(4, () => CopyFileEx.CopyFileAsync(Source, Destination, ProgressPercent, 100, true, cdToken.Token));
+            await Run(5, () => CopyFileEx.CopyFileAsync(Source, Destination, ProgressSize, 100, true, cdToken.Token));
+            await Run(6, () => CopyFileEx.CopyFileAsync(Source, Destination, cdToken.Token));
+            Assert.IsFalse(File.Exists(Destination));
+
+            static async Task Run(int testNumber, Func<Task<bool>> copyTask)
+            {
+                await Assert.ThrowsAsync<OperationCanceledException>(copyTask, $"\n >> Task Failed - Test {testNumber}");
             }
         }
 
-        private Progress<ProgressUpdate> progFull = new Progress<ProgressUpdate>();
-        private Progress<double> progPercent = new Progress<double>();
-        private Progress<long> progSize = new Progress<long>();
-
-        bool progFullUpdated = false;
-        bool progPercentUpdated = false;
-        bool progSizeUpdated = false;
-
-        void progFullHandler(object o, ProgressUpdate e) => progFullUpdated = true;
-        void progPercentHandler(object o, double e) => progPercentUpdated = true;
-        void progSizeHandler(object o, long e) => progSizeUpdated = true;
-
-        [TestMethod()]
-        public async Task CopyFileEx_AsyncOverloads()
+        /// <rewmarks>
+        /// A failure on this test indicates that the <see cref="Progress{T}"/> overloads may not be working!
+        /// </rewmarks>
+        [TestMethod]
+        public async Task CopyFileEx_CopyFileAsync_Cancelled_WhileWriting()
         {
             if (!VersionManager.IsPlatformWindows) return;
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
-            string sourceFile = GetRandomPath();
+            var cdToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+            cdToken.Cancel();
 
-            List<string> destinationFiles = new List<string>();
-            string GetDestination()
+            CopyProgressCallback midWriteCancelCallback = new CopyProgressCallback((a, b, c, d, e, f) => CopyProgressCallbackResult.CANCEL);
+
+            var pFull = ProgressFull;
+            var pPercent = ProgressPercent;
+            var pSize = ProgressSize;
+
+            CreateDummyFile(Source, 1024 * 1024 * 10);
+            await Run(1, () => CopyFileEx.CopyFileAsync(Source, Destination, CopyFileExOptions.RESTARTABLE, progressCallback: midWriteCancelCallback, token: cdToken.Token));
+            await Run(2, () => CopyFileEx.CopyFileAsync(Source, Destination, true, cdToken.Token));
+            await Run(3, () => CopyFileEx.CopyFileAsync(Source, Destination, pFull, 25, true, GetProgToken(pFull)));
+            await Run(4, () => CopyFileEx.CopyFileAsync(Source, Destination, pPercent, 25, true, GetProgToken(pPercent)));
+            await Run(5, () => CopyFileEx.CopyFileAsync(Source, Destination, pSize, 25, true, GetProgToken(pSize)));
+
+            Assert.IsFalse(File.Exists(Destination));
+
+            static async Task Run(int testNumber, Func<Task<bool>> copyTask)
             {
-                string dest = GetRandomPath();
-                destinationFiles.Add(dest);
-                return dest;
+                await Assert.ThrowsAsync<OperationCanceledException>(copyTask, $"\n >> Task Failed - Test {testNumber}");
             }
-            string destFile = GetDestination();
 
-            try
+            CancellationToken GetProgToken<T>(Progress<T> progress)
             {
-                Console.WriteLine(string.Format("Source: {0}\nDestination: {1}", sourceFile, destFile));
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-
-
-                progFull.ProgressChanged += progFullHandler;
-                progPercent.ProgressChanged += progPercentHandler;
-                progSize.ProgressChanged += progSizeHandler;
-
-                string assertMessage = "\n Source File Missing Test";
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, false, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, true, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progFull, 100, true, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progPercent, 100, true, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<FileNotFoundException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progSize, 100, true, TestContext.CancellationToken), assertMessage);
-                Assert.IsFalse(progFullUpdated | progSizeUpdated | progPercentUpdated);
-
-                IFileCopierTests.CreateDummyFile(sourceFile, 10 * 1024 * 1024);
-                File.WriteAllText(destFile, "Content to replace");
-                Assert.IsTrue(File.Exists(sourceFile));
-                Assert.IsTrue(File.Exists(destFile));
-
-                // Prevent Overwrite
-                assertMessage = "\n Overwrite Prevention Test";
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, false, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progFull, 100, false, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progPercent, 100, false, TestContext.CancellationToken), assertMessage);
-                await Assert.ThrowsAsync<IOException>(async () => await CopyFileEx.CopyFileAsync(sourceFile, destFile, progSize, 100, false, TestContext.CancellationToken), assertMessage);
-
-                // Overwrite
-                progPercentUpdated = false;
-                progSizeUpdated = false;
-                progFullUpdated = false;
-                assertMessage = "\n Allow Overwrite Test";
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, destFile, true, TestContext.CancellationToken), assertMessage);
-                Assert.AreEqual(new FileInfo(sourceFile).Length, new FileInfo(destFile).Length, "File was not overwritten");
-
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, GetDestination(), progFull, 25, true, TestContext.CancellationToken), assertMessage);
-                Assert.IsTrue(progFullUpdated, "Full Progress object never reported");
-
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, GetDestination(), progPercent, 25, true, TestContext.CancellationToken), assertMessage);
-                Assert.IsTrue(progPercentUpdated, "Percentage Progress object never reported");
-
-                Assert.IsTrue(await CopyFileEx.CopyFileAsync(sourceFile, GetDestination(), progSize, 25, true, TestContext.CancellationToken), assertMessage);
-                Assert.IsTrue(progSizeUpdated, "Size Progress object never reported");
-
-                // Cancellation Prior to write
-                assertMessage = "\n Cancelled before operation started Test";
-                var cdToken = new CancellationTokenSource();
-                cdToken.Cancel();
-                File.Delete(destFile);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, cdToken.Token), assertMessage);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, false, cdToken.Token), assertMessage);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progFull, 50, false, cdToken.Token), assertMessage);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progPercent, 50, false, cdToken.Token), assertMessage);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progSize, 50, false, cdToken.Token), assertMessage);
-                Assert.IsFalse(File.Exists(destFile));
-
-                // Cancellation Mid-Write - These tests have potential to fail due to race condition with small file size when run on Appveyor (which completes copy operation before cancellation occurs)
-                if (RoboSharp.UnitTests.Test_Setup.IsRunningOnAppVeyor(false)) return;
-                
-                assertMessage = "\n Mid-Write Cancellation Test #";
-                CancellationToken GetProgToken<T>(Progress<T> progress)
+                var source = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+                progress.ProgressChanged += Cancel;
+                return source.Token;
+                void Cancel(object o, T obj)
                 {
-                    var source = new CancellationTokenSource();
-                    progress.ProgressChanged += Cancel;
-                    return source.Token;
-                    void Cancel(object o, T obj)
-                    {
-                        source.Cancel();
-                        progress.ProgressChanged -= Cancel;
-                    }
+                    source.Cancel();
+                    progress.ProgressChanged -= Cancel;
                 }
-                File.Delete(destFile);
-                CopyProgressCallback midWriteCancelCallback = new CopyProgressCallback((a, b, c, d, e, f) => CopyProgressCallbackResult.CANCEL);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, CopyFileExOptions.NONE, midWriteCancelCallback, CancellationToken.None), assertMessage + 1);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progFull, 5, false, GetProgToken(progFull)), assertMessage + 2);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progPercent, 5, false, GetProgToken(progPercent)), assertMessage + 3);
-                await Assert.ThrowsAsync<OperationCanceledException>(() => CopyFileEx.CopyFileAsync(sourceFile, destFile, progSize, 5, false, GetProgToken(progSize)), assertMessage + 4);
-                // These progress report assertions are to check that the operation STARTED but was cancelled prior to completion, causing deletion because Restartable mode was not used.
-                Assert.IsFalse(File.Exists(destFile));
-            }
-            finally
-            {
-                if (File.Exists(sourceFile)) File.Delete(sourceFile);
-                foreach (var dest in destinationFiles)
-                    if (File.Exists(dest)) File.Delete(dest);
-
-                progFull.ProgressChanged -= progFullHandler;
-                progPercent.ProgressChanged -= progPercentHandler;
-                progSize.ProgressChanged -= progSizeHandler;
             }
         }
-
-        public TestContext TestContext { get; set; }
     }
 }
 

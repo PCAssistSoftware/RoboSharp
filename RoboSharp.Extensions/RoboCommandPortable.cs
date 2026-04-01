@@ -630,7 +630,12 @@ namespace RoboSharp.Extensions
                 string destPath = Path.Combine(dirPair.Destination.FullName, name);
                 string sourcePath = Path.Combine(dirPair.Source.FullName, name);
 
-                yield return copierFactory.Create(new FileInfo(sourcePath), new FileInfo(destPath), dirPair);
+                var copier = copierFactory.Create(new FileInfo(sourcePath), new FileInfo(destPath), dirPair);
+
+                if (VersionManager.IsPlatformWindows && CopyOptions.Compress && copier is Windows.CopyFileEx cf)
+                    cf.CopyOptions |= Windows.CopyFileExOptions.REQUEST_COMPRESSED_TRAFFIC;
+
+                yield return copier;
             }
         }
 

@@ -11,35 +11,76 @@ using System.Threading.Tasks;
 
 namespace RoboSharp.Extensions.Tests
 {
+    [TestClass]
+    public sealed class StreamedCopierTests : IFileCopierTests<StreamedCopierFactory>
+    {
+        protected override StreamedCopierFactory GetFactory()
+        {
+            return new StreamedCopierFactory() { BufferSize = StreamedCopier.DefaultBufferSize };
+        }
+    }
+
     /// <summary>
     /// Run a test of the <see cref="IFileCopier"/> standard operations via the provided <see cref="IFileCopierFactory"/>
     /// </summary>
-    [TestClass]
-    public class IFileCopierTests
+    public abstract class IFileCopierTests<TFactory> where TFactory : IFileCopierFactory
     {
         private class MyFileSource(string path) : IFileSource
         {
             public string FilePath { get; set; } = path;
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Required for testing - Platform support is tested as well")]
-        private static IEnumerable<object[]> GetCopierFactory()
+        public TestContext TestContext { get; set; }
+        protected string Source { get; set; }
+        protected string Destination { get; set; }
+
+        /// <summary>
+        /// Abstract method that derived classes must implement to provide the factory instance
+        /// </summary>
+        protected abstract TFactory GetFactory();
+
+        /// <summary>
+        /// Gets a copier instance from the factory using the Source and Destination paths
+        /// </summary>
+        protected IFileCopier GetCopier() => GetFactory().Create(Source, Destination);
+
+        [TestInitialize]
+        public void Initialize()
         {
-            yield return Wrap(new StreamedCopierFactory() { BufferSize = StreamedCopier.DefaultBufferSize });
-            yield return Wrap(new Windows.CopyFileExFactory() { Options = Windows.CopyFileExOptions.RESTARTABLE }); // run in restartable mode to artificially slow down the copy operation, otherwise cancellation test may fail due to very quick copy times
-        }
-        private static IEnumerable<object[]> GetCopier() // takes the above factories and gets the copier from it
-        {
-            return GetCopierFactory().Select(o => Wrap(
-                ((IFileCopierFactory)o[0]).Create(GetRandomPath(false), GetRandomPath(true))
-            ));
+            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
+            Source = Test_Setup.GetNewTempPath();
+            Destination = Test_Setup.GetNewTempPath();
         }
 
-        private static object[] Wrap(params object[] objects) => objects;
-        
-        public static String GetCopierName(MethodInfo info, object[] objects) => objects[0].GetType().Name;
+        [TestCleanup]
+        public void Cleanup()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(Source) && File.Exists(Source))
+                {
+                    File.Delete(Source);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
 
-        private static string GetRandomPath(bool isSubFolder = false) => isSubFolder ? Test_Setup.GetNewTempPathWithChild().file : Test_Setup.GetNewTempPath();
+            try
+            {
+                if (!string.IsNullOrEmpty(Destination) && File.Exists(Destination))
+                {
+                    File.Delete(Destination);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+
+
 
         public static void CreateDummyFile(string filePath, int lengthInBytes)
         {
@@ -54,12 +95,11 @@ namespace RoboSharp.Extensions.Tests
         public static void PrepSourceAndDest(IFileCopier copier, bool deleteDest = true)
         {
             // Create 32MB file for testing
-            long size = 1024L*1024 * 32;
+            long size = 1024L * 1024 * 16;
             if (!copier.Source.Exists || copier.Source.Exists && copier.Source.Length < size)
             {
                 copier.Source.Directory.Create();
                 CreateDummyFile(copier.Source.FullName, (int)size);
-                
             }
             copier.Source.Refresh();
             Assert.AreEqual(size, copier.Source.Length);
@@ -67,13 +107,13 @@ namespace RoboSharp.Extensions.Tests
             copier.Destination.Directory.Create();
         }
 
-        public static async Task Cleanup(IFileCopier copier, bool deleteSource = true)
+        public static async Task CleanupCopier(IFileCopier copier, bool deleteSource = true)
         {
             if (copier is IAsyncDisposable adp)
                 await adp.DisposeAsync();
             else if (copier is IDisposable dp)
                 dp.Dispose();
-            
+
             if (deleteSource && File.Exists(copier.Source.FullName)) copier.Source.Delete();
             if (File.Exists(copier.Destination.FullName)) copier.Destination.Delete();
             copier.Source.Refresh();
@@ -103,34 +143,21 @@ namespace RoboSharp.Extensions.Tests
         }
 
         /// <summary>
-        /// Runs the various tests against a specific factory
-        /// </summary>
-        internal static async Task RunTests(IFileCopierFactory factory)
-        {
-            var runner = new IFileCopierTests();
-            runner.RunFactoryTests(factory);
-            IFileCopier copier = factory.Create(GetRandomPath(false), GetRandomPath(true));
-            await runner.CopyAsyncTest(copier);
-            await runner.MoveAsyncTest(copier);
-            await runner.AttributesCopiedProperlyTest(copier);
-        }
-
-        /// <summary>
         /// Tests the basic functionality of an <see cref="IFileCopierFactory"/>
         /// </summary>
-        [DynamicData(nameof(GetCopierFactory), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
-        public void RunFactoryTests(IFileCopierFactory factory)
+        public void IFileCopierTest_RunFactoryTests()
         {
+            TFactory factory = GetFactory();
             Console.WriteLine($"IFileCopierFactory Type : {factory.GetType()}");
             Test_Setup.PrintEnvironment();
-            FileInfo source = new FileInfo(GetRandomPath(false));
-            FileInfo dest = new FileInfo(GetRandomPath(true));
-            
+            FileInfo source = new FileInfo(Source);
+            FileInfo dest = new FileInfo(Destination);
+
             IFileCopier cp;
-            
+
             Assert.IsNotNull(factory.Create(new FilePair(source, dest)));
-            
+
             // Create at destination dir
             Assert.IsNotNull(cp = factory.Create(new MyFileSource(source.FullName), dest.Directory));
             Assert.AreEqual(source.Name, cp.Destination.Name, "\n --- Created destination does not match source file name");
@@ -147,93 +174,268 @@ namespace RoboSharp.Extensions.Tests
             Assert.AreEqual(dest.Name, cp.Destination.Name, "\n --- Created destination does not match expected file name");
         }
 
-        /// <summary>
-        /// Tests the basic functionality of an <see cref="IFileCopier.CopyAsync()"/>
-        /// </summary>
-        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
-        [TestMethod]
-        public async Task CopyAsyncTest(IFileCopier copier)
-        {
-            double progress = 0;
-            var tcs = new TaskCompletionSource<object>();
-            bool copyResult = false;
+        #region CopyAsync Tests
 
+        /// <summary>
+        /// Tests CopyAsync with missing source file
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_MissingSourceThrows()
+        {
+            IFileCopier copier = GetCopier();
             try
             {
-                string destPath = copier.Destination.FullName;
-
-                // check platform support
                 if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
 
-                //Source is missing
-                await Assert.ThrowsAsync<FileNotFoundException>(copier.CopyAsync, "\n --Did not throw when source is missing \n");
-
-                PrepSourceAndDest(copier);
-
-                // Test Copy
-                Assert.IsTrue(await copier.CopyAsync(), "\n -- IFileCopierTests - Copy - Test 1\n");
-                Assert.IsTrue(await copier.CopyAsync(true), "\n -- IFileCopierTests - Copy - Test 2\n");
-                Assert.IsTrue(await copier.CopyAsync(true, CancellationToken.None), "\n -- IFileCopierTests - Copy - Test 3\n");
-
-                //File already exists
-                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(), "\n -- IFileCopierTests - Prevent Overwrite - Test 1\n");
-                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false), "\n -- IFileCopierTests - Prevent Overwrite - Test 2\n");
-                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Prevent Overwrite - Test 3\n");
-                await Cleanup(copier, false);
-
-                // Cancellation Test 1 -- BEFORE start of the operation
-                CancellationTokenSource cToken = new CancellationTokenSource();
-                cToken.Cancel();
-                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Token Test (1)\n");
-                Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (1)");
-                Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (1)");
-
-
-                // Cancellation Test 2 -- Mid-Write + tests ProgressUpdated
-                copier.ProgressUpdated += CancelEventHandler;
-                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, CancellationToken.None), "\n -- Copier.Cancel() Test (2)\n");
-                Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (2)");
-                Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (2)");
-                copier.ProgressUpdated -= CancelEventHandler;
-
-                // Cancellation Test 3 -- Mid-Write + Trigger via Cancellation Token
-                cToken = new CancellationTokenSource();
-                void tokenHandler(object o, EventArgs e) => cToken.Cancel();
-                copier.ProgressUpdated += tokenHandler;
-                await Assert.ThrowsAsync<OperationCanceledException>(async () => copyResult = await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Test 3\n");
-                Assert.IsFalse(File.Exists(destPath), "\nCancelled operation did not delete destination file (3)");
-                Assert.IsFalse(copier.Destination.Exists, "\nDestination object was not refreshed (3)");
-                copier.ProgressUpdated -= tokenHandler;
-
-                // Pause & Resume
-                cToken = new CancellationTokenSource();
-                copier.ProgressUpdated += PauseHandler;
-                copier.ProgressUpdated += ProgressUpdates;
-                var copyTask = copier.CopyAsync(true, cToken.Token);
-                await tcs.Task;
-                await Task.Delay(150);
-                var p = progress;
-                await Task.Delay(150);
-                Assert.AreEqual(p, progress, "\n Progress updated while paused!");
-                cToken.CancelAfter(1000);
-                copier.Resume();
-                Assert.IsTrue(await copyTask);
-                Assert.AreEqual(100, progress);
-                copier.ProgressUpdated -= ProgressUpdates;
+                await Assert.ThrowsAsync<FileNotFoundException>(copier.CopyAsync, "\n -- Did not throw when source is missing \n");
             }
             catch (Exception e)
             {
-                Console.WriteLine(string.Format("\n----------------\nSource File Path      : {0}", copier.Source));
-                Console.WriteLine(string.Format("Destination File Path : {0}", copier.Destination));
-                Console.WriteLine(string.Format("\nException : {0}\n----------------", e.Message));
+                LogCopierState(copier, e);
                 throw;
             }
             finally
             {
-                await Cleanup(copier);
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests CopyAsync basic copy operations with various parameter combinations
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_BasicFunctionality()
+        {
+            IFileCopier copier = GetCopier();
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                // Test Copy - default parameters
+                Assert.IsTrue(await copier.CopyAsync(), "\n -- CopyAsync_BasicFunctionality - Test 1 (default params)\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 1\n");
+
+                // Clean destination for next test
+                await CleanupCopier(copier, deleteSource: false);
+                PrepSourceAndDest(copier, deleteDest: true);
+
+                // Test Copy - with overwrite = true
+                Assert.IsTrue(await copier.CopyAsync(true), "\n -- CopyAsync_BasicFunctionality - Test 2 (overwrite=true)\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 2\n");
+
+                // Clean destination for next test
+                await CleanupCopier(copier, deleteSource: false);
+                PrepSourceAndDest(copier, deleteDest: true);
+
+                // Test Copy - with overwrite = true and cancellation token
+                Assert.IsTrue(await copier.CopyAsync(true, TestContext.CancellationToken), "\n -- CopyAsync_BasicFunctionality - Test 3 (overwrite=true, cancellation token)\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 3\n");
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests that CopyAsync prevents overwriting existing files
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_PreventOverwrite()
+        {
+            IFileCopier copier = GetCopier();
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                // First copy succeeds
+                Assert.IsTrue(await copier.CopyAsync(true), "\n -- CopyAsync_PreventOverwrite - Initial copy failed\n");
+
+#pragma warning disable MSTEST0049 // Flow TestContext.CancellationToken to async operations
+                // Attempt to copy again without overwrite flag - should throw IOException
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(), "\n -- CopyAsync_PreventOverwrite - Test 1 (default params)\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false), "\n -- CopyAsync_PreventOverwrite - Test 2 (overwrite=false)\n");
+                await Assert.ThrowsAsync<IOException>(() => copier.CopyAsync(false, TestContext.CancellationToken), "\n -- CopyAsync_PreventOverwrite - Test 3 (overwrite=false, cancellation token)\n");
+#pragma warning restore MSTEST0049 // Flow TestContext.CancellationToken to async operations
+
+                await CleanupCopier(copier, deleteSource: false);
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests CopyAsync cancellation before the operation starts
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_CancellationBeforeStart()
+        {
+            IFileCopier copier = GetCopier();
+            string destPath = copier.Destination.FullName;
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                // Cancel before starting
+                CancellationTokenSource cToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+                cToken.Cancel();
+
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Token Test (before start)\n");
+
+                Assert.IsFalse(File.Exists(destPath), "\n -- Cancelled operation did not delete destination file (before start)\n");
+                Assert.IsFalse(copier.Destination.Exists, "\n -- Destination object was not refreshed (before start)\n");
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests CopyAsync cancellation during operation using Pause/Cancel methods
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_CancellationMidOperation()
+        {
+            IFileCopier copier = GetCopier();
+            string destPath = copier.Destination.FullName;
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                copier.ProgressUpdated += CancelEventHandler;
+
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => await copier.CopyAsync(true, TestContext.CancellationToken), "\n >> Failed to throw OperationCancelledException");
+
+                Assert.IsFalse(File.Exists(destPath), "\n -- Cancelled operation did not delete destination file (mid-operation)\n");
+                Assert.IsFalse(copier.Destination.Exists, "\n -- Destination object was not refreshed (mid-operation)\n");
+
+                copier.ProgressUpdated -= CancelEventHandler;
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
             }
 
-            // Helper Methods
+            void CancelEventHandler(object sender, EventArgs e)
+            {
+                copier.Cancel();
+            }
+        }
+
+        /// <summary>
+        /// Tests CopyAsync cancellation triggered via CancellationToken during operation
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_CancellationViaToken()
+        {
+            IFileCopier copier = GetCopier();
+            string destPath = copier.Destination.FullName;
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                CancellationTokenSource cToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+                void tokenHandler(object o, EventArgs e) => cToken.Cancel();
+
+                copier.ProgressUpdated += tokenHandler;
+
+                await Assert.ThrowsAsync<OperationCanceledException>(async () => await copier.CopyAsync(true, cToken.Token), "\n -- Cancellation Test (via token during operation)\n");
+
+                Assert.IsFalse(File.Exists(destPath), "\n -- Cancelled operation did not delete destination file (via token)\n");
+                Assert.IsFalse(copier.Destination.Exists, "\n -- Destination object was not refreshed (via token)\n");
+
+                copier.ProgressUpdated -= tokenHandler;
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests CopyAsync Pause and Resume functionality
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_CopyAsync_PauseAndResume()
+        {
+            IFileCopier copier = GetCopier();
+            double progress = 0;
+            var tcs = new TaskCompletionSource<object>();
+
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier);
+
+                CancellationTokenSource cToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.CancellationToken);
+                copier.ProgressUpdated += PauseHandler;
+                copier.ProgressUpdated += ProgressUpdates;
+
+                var copyTask = copier.CopyAsync(true, cToken.Token);
+                await tcs.Task; // Wait for pause signal
+
+                await Task.Delay(150, TestContext.CancellationToken);
+                var pausedProgress = progress;
+
+                await Task.Delay(150, TestContext.CancellationToken);
+                Assert.AreEqual(pausedProgress, progress, "\n -- Progress updated while paused!\n");
+
+                cToken.CancelAfter(1000);
+                copier.Resume();
+
+                Assert.IsTrue(await copyTask, "\n -- Copy did not complete after resume\n");
+                Assert.AreEqual(100, progress, "\n -- Progress not at 100% after completion\n");
+
+                copier.ProgressUpdated -= ProgressUpdates;
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
 
             void PauseHandler(object o, CopyProgressEventArgs e)
             {
@@ -241,83 +443,132 @@ namespace RoboSharp.Extensions.Tests
                 copier.Pause();
                 tcs.SetResult(null);
             }
+
             void ProgressUpdates(object o, CopyProgressEventArgs e)
             {
                 progress = e.CurrentFileProgress;
             }
-            void CancelEventHandler(object sender, EventArgs e)
-            {
-                if (sender is IFileCopier cp)
-                    cp.Cancel();
-            }
-
         }
 
+        #endregion
+
+        #region MoveAsync Tests
+
         /// <summary>
-        /// Tests the basic functionality of an <see cref="IFileCopier.MoveAsync()"/>
+        /// Tests MoveAsync with missing source file
         /// </summary>
-        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
-        public async Task MoveAsyncTest(IFileCopier copier)
+        public async Task IFileCopierTest_MoveAsync_MissingSourceThrows()
         {
-            // Move used the Copy api, then checks for completion, and deletes source file if OK
-            void PrepMove() => PrepSourceAndDest(copier, false);
+            IFileCopier copier = GetCopier();
             try
             {
-                // check platform support
                 if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
 
-                //Source is missing
-                await Assert.ThrowsAsync<FileNotFoundException>(() => copier.MoveAsync(), "\n --Did not throw when source is missing \n");
-
-                const string fileNotMoved = "\n -- IFileCopierTests - Move - Source Not Moved - Test {0}\n";
-                const string fileMoved = "\n -- IFileCopierTests - Move - Source Not Moved - Test {0}\n";
-
-                // Test Move
-                PrepMove();
-                Assert.IsTrue(await copier.MoveAsync(), "\n -- IFileCopierTests - Move - Test 1");
-                Assert.IsFalse(File.Exists(copier.Source.FullName), string.Format(fileNotMoved, 1));
-
-                PrepMove();
-                Assert.IsTrue(await copier.MoveAsync(true), "\n -- IFileCopierTests - Move - Test 2\n");
-                Assert.IsFalse(File.Exists(copier.Source.FullName), string.Format(fileNotMoved,2));
-
-                PrepMove();
-                Assert.IsTrue(await copier.MoveAsync(true, CancellationToken.None), "\n -- IFileCopierTests - Move - Test 3\n");
-                Assert.IsFalse(File.Exists(copier.Source.FullName), string.Format(fileNotMoved, 3));
-
-                //File already exists
-                PrepSourceAndDest(copier, false);
-                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 1\n");
-                Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 1));
-
-                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 2\n");
-                Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 2));
-
-                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false, CancellationToken.None), "\n -- IFileCopierTests - Move - Prevent Overwrite - Test 3\n");
-                Assert.IsTrue(File.Exists(copier.Source.FullName), string.Format(fileMoved, 3));
-                await Cleanup(copier, false);
+                await Assert.ThrowsAsync<FileNotFoundException>(() => copier.MoveAsync(), "\n -- Did not throw when source is missing \n");
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                Console.WriteLine(string.Format("\n----------------\nSource File Path      : {0}", copier.Source));
-                Console.WriteLine(string.Format("Destination File Path : {0}", copier.Destination));
-                Console.WriteLine(string.Format("Exception : {0}\n\n----------------", e.Message));
+                LogCopierState(copier, e);
                 throw;
             }
             finally
             {
-                await Cleanup(copier);
+                await CleanupCopier(copier);
             }
         }
 
         /// <summary>
+        /// Tests MoveAsync basic move operations with various parameter combinations
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_MoveAsync_BasicFunctionality()
+        {
+            IFileCopier copier = GetCopier();
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                // Test Move - default parameters
+                PrepSourceAndDest(copier, deleteDest: false);
+                Assert.IsTrue(await copier.MoveAsync(), "\n -- MoveAsync_BasicFunctionality - Test 1 (default params)\n");
+                Assert.IsFalse(File.Exists(copier.Source.FullName), "\n -- Source file not deleted after move - Test 1\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 1\n");
+
+                // Test Move - with overwrite = true
+                PrepSourceAndDest(copier, deleteDest: false);
+                Assert.IsTrue(await copier.MoveAsync(true), "\n -- MoveAsync_BasicFunctionality - Test 2 (overwrite=true)\n");
+                Assert.IsFalse(File.Exists(copier.Source.FullName), "\n -- Source file not deleted after move - Test 2\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 2\n");
+
+                // Test Move - with overwrite = true and cancellation token
+                PrepSourceAndDest(copier, deleteDest: false);
+                Assert.IsTrue(await copier.MoveAsync(true, TestContext.CancellationToken), "\n -- MoveAsync_BasicFunctionality - Test 3 (overwrite=true, cancellation token)\n");
+                Assert.IsFalse(File.Exists(copier.Source.FullName), "\n -- Source file not deleted after move - Test 3\n");
+                Assert.IsTrue(File.Exists(copier.Destination.FullName), "\n -- Destination file not created - Test 3\n");
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        /// <summary>
+        /// Tests that MoveAsync prevents overwriting existing files
+        /// </summary>
+        [TestMethod]
+        public async Task IFileCopierTest_MoveAsync_PreventOverwrite()
+        {
+            IFileCopier copier = GetCopier();
+            try
+            {
+                if (await ThrowsIfNotWindowsPlatform(copier) is false) return;
+
+                PrepSourceAndDest(copier, deleteDest: false);
+
+                // First move succeeds
+                Assert.IsTrue(await copier.MoveAsync(), "\n -- MoveAsync_PreventOverwrite - Initial move failed\n");
+                Assert.IsFalse(File.Exists(copier.Source.FullName), "\n -- Source file not deleted after initial move\n");
+
+                // Attempt to move again without overwrite flag - should throw IOException
+                PrepSourceAndDest(copier, deleteDest: false);
+
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(), "\n -- MoveAsync_PreventOverwrite - Test 1 (default params)\n");
+                Assert.IsTrue(File.Exists(copier.Source.FullName), "\n -- Source file was deleted despite IOException - Test 1\n");
+
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false), "\n -- MoveAsync_PreventOverwrite - Test 2 (overwrite=false)\n");
+                Assert.IsTrue(File.Exists(copier.Source.FullName), "\n -- Source file was deleted despite IOException - Test 2\n");
+
+                await Assert.ThrowsAsync<IOException>(() => copier.MoveAsync(false, TestContext.CancellationToken), "\n -- MoveAsync_PreventOverwrite - Test 3 (overwrite=false, cancellation token)\n");
+                Assert.IsTrue(File.Exists(copier.Source.FullName), "\n -- Source file was deleted despite IOException - Test 3\n");
+
+                await CleanupCopier(copier, deleteSource: false);
+            }
+            catch (Exception e)
+            {
+                LogCopierState(copier, e);
+                throw;
+            }
+            finally
+            {
+                await CleanupCopier(copier);
+            }
+        }
+
+        #endregion
+
+        /// <summary>
         /// Tests that attributes and file itself are copied to the destination file properly, just like if they were copied via File.CopyTo();
         /// </summary>
-        [DynamicData(nameof(GetCopier), DynamicDataDisplayName = nameof(GetCopierName))]
         [TestMethod]
-        public async Task AttributesCopiedProperlyTest(IFileCopier copier)
+        public async Task IFileCopierTest_AttributesCopiedProperlyTest()
         {
+            IFileCopier copier = GetCopier();
             string fileCopyToDest = copier.Destination.FullName + "_control";
 
             string sourceMD5 = null; string destinationMD5 = null; string controlMD5 = null;
@@ -369,7 +620,7 @@ namespace RoboSharp.Extensions.Tests
             {
                 FileInfo c = new(fileCopyToDest);
                 string dateTimeMs = "yyyy/MM/dd hh:mm:ss.fff tt";
-                Console.WriteLine("-----"); 
+                Console.WriteLine("-----");
                 Console.WriteLine($"Source      Length: {copier.Source.Length}");
                 Console.WriteLine($"File.CopyTo Length: {c.Length}");
                 Console.WriteLine($"IFileCopier Length: {copier.Destination.Length}");
@@ -391,24 +642,35 @@ namespace RoboSharp.Extensions.Tests
             finally
             {
                 if (File.Exists(fileCopyToDest)) File.Delete(fileCopyToDest);
-                await Cleanup(copier);
+                await CleanupCopier(copier);
             }
 
             static string CalculateMD5(string filename)
             {
                 if (File.Exists(filename))
                 {
-                    using (var md5 = MD5.Create())
-                    {
-                        using (var stream = File.OpenRead(filename))
-                        {
-                            var hash = md5.ComputeHash(stream);
-                            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-                        }
-                    }
+                    using var md5 = MD5.Create();
+                    using var stream = File.OpenRead(filename);
+                    var hash = md5.ComputeHash(stream);
+#if NET10_0_OR_GREATER
+                    var hashString = System.Convert.ToHexStringLower(hash);
+#else
+                            var hashString = BitConverter.ToString(hash).ToLowerInvariant();
+#endif
+                    return hashString.Replace("-", "");
                 }
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Helper method to log copier state for debugging
+        /// </summary>
+        private static void LogCopierState(IFileCopier copier, Exception e)
+        {
+            Console.WriteLine(string.Format("\n----------------\nSource File Path      : {0}", copier.Source));
+            Console.WriteLine(string.Format("Destination File Path : {0}", copier.Destination));
+            Console.WriteLine(string.Format("\nException : {0}\n----------------", e.Message));
         }
     }
 }
