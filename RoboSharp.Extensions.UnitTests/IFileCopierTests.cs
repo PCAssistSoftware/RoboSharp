@@ -36,9 +36,10 @@ namespace RoboSharp.Extensions.Tests
         }
 
         private static object[] Wrap(params object[] objects) => objects;
+        
         public static String GetCopierName(MethodInfo info, object[] objects) => objects[0].GetType().Name;
 
-        private static string GetRandomPath(bool isSubFolder = false) => TestPrep.GetRandomPath(isSubFolder);
+        private static string GetRandomPath(bool isSubFolder = false) => isSubFolder ? Test_Setup.GetNewTempPathWithChild().file : Test_Setup.GetNewTempPath();
 
         public static void CreateDummyFile(string filePath, int lengthInBytes)
         {
@@ -228,7 +229,6 @@ namespace RoboSharp.Extensions.Tests
             finally
             {
                 await Cleanup(copier);
-                TestPrep.CleanAppData();
             }
 
             // Helper Methods
@@ -306,7 +306,6 @@ namespace RoboSharp.Extensions.Tests
             finally
             {
                 await Cleanup(copier);
-                TestPrep.CleanAppData();
             }
         }
 
@@ -391,7 +390,6 @@ namespace RoboSharp.Extensions.Tests
             {
                 if (File.Exists(fileCopyToDest)) File.Delete(fileCopyToDest);
                 await Cleanup(copier);
-                TestPrep.CleanAppData();
             }
 
             static string CalculateMD5(string filename)

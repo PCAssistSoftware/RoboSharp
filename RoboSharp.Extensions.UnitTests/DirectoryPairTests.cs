@@ -13,6 +13,17 @@ namespace RoboSharp.Extensions.Tests
     [TestClass]
     public class DirectoryPairTests
     {
+        public TestContext TestContext { get; set; }
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize()
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup() => Test_Setup.ClearOutTestDestination(Destination);
 
         [DataRow(true, @"C:\")]
         [DataRow(false, @"C:\MyDocuments")]
@@ -49,10 +60,9 @@ namespace RoboSharp.Extensions.Tests
         [TestMethod]
         public void Test_ExtraFiles()
         {
-            Test_Setup.ClearOutTestDestination();
             DirectoryInfo source = new DirectoryInfo(Test_Setup.Source_Standard);
-            DirectoryInfo dest = new DirectoryInfo(Test_Setup.TestDestination);
-            if (!dest.Exists) dest.Create();
+            DirectoryInfo dest = Directory.CreateDirectory(Destination);
+            
             dest.Refresh();
             string f1 = Path.Combine(dest.FullName, "TestFile.txt");
             File.WriteAllText(f1, "MyText");
@@ -65,9 +75,8 @@ namespace RoboSharp.Extensions.Tests
         [TestMethod]
         public void Test_ExtraDirectories()
         {
-            Test_Setup.ClearOutTestDestination();
             DirectoryInfo source = new DirectoryInfo(Test_Setup.Source_Standard);
-            DirectoryInfo dest = new DirectoryInfo(Test_Setup.TestDestination);
+            DirectoryInfo dest = Directory.CreateDirectory(Destination);
             string sub1 = Path.Combine(dest.FullName, "Sub1", "Sub1.1");
             Directory.CreateDirectory(sub1);
             Directory.CreateDirectory(Path.Combine(dest.FullName, "Sub2", "Sub2.1"));

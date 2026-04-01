@@ -43,7 +43,7 @@ namespace RoboSharp.Extensions.Options
             return new Regex($"^{sanitized}$", options: RegexOptions.IgnoreCase | RegexOptions.Compiled);
         }
 
-        #region < Should Exclude Newer >
+        #region < Should Exclude Older >
 
         /// <summary> </summary>
         /// <returns> TRUE if the file should be excluded, FALSE if it should be included </returns>
@@ -61,13 +61,13 @@ namespace RoboSharp.Extensions.Options
 
         /// <summary> </summary>
         /// <returns> TRUE if the file should be excluded, FALSE if it should be included </returns>
-        public static bool ShouldExcludeNewer(this SelectionOptions options, string source, string destination) => options.ExcludeNewer && IFilePairExtensions.IsSourceNewer(source, destination);
+        public static bool ShouldExcludeNewer(this SelectionOptions options, string source, string destination) => options.ExcludeNewer && File.Exists(destination) && IFilePairExtensions.IsSourceNewer(source, destination);
 
         /// <inheritdoc cref="ShouldExcludeNewer(SelectionOptions, string, string)"/>
-        public static bool ShouldExcludeNewer(this SelectionOptions options, FileInfo source, FileInfo destination) => options.ExcludeNewer && IFilePairExtensions.IsSourceNewer(source, destination);
+        public static bool ShouldExcludeNewer(this SelectionOptions options, FileInfo source, FileInfo destination) => options.ExcludeNewer && destination.Exists && IFilePairExtensions.IsSourceNewer(source, destination);
 
         /// <inheritdoc cref="ShouldExcludeNewer(SelectionOptions, FileInfo, FileInfo)"/>
-        public static bool ShouldExcludeNewer(this SelectionOptions options, IFilePair pair) => options.ExcludeNewer && pair.IsSourceNewer();
+        public static bool ShouldExcludeNewer(this SelectionOptions options, IFilePair pair) => options.ExcludeNewer && pair.Destination.Exists && pair.IsSourceNewer();
 
         #endregion
 

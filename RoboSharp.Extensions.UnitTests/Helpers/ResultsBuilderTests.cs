@@ -18,8 +18,11 @@ namespace RoboSharp.Extensions.Helpers.UnitTests
         {
             var cmd = new RoboCommand()
             {
-                Configuration = new RoboSharpConfiguration() { EnableFileLogging = true },
-                LoggingOptions = new LoggingOptions()
+                Configuration = 
+                { 
+                    EnableFileLogging = true 
+                },
+                LoggingOptions = 
                 {
                     NoJobSummary = true,
                     NoJobHeader = true,

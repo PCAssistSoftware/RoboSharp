@@ -17,29 +17,33 @@ namespace RoboSharp.Extensions.Tests
     {
         public TestContext TestContext { get; set; }
 
+        private string Destination { get; set; }
+
+        [TestInitialize]
+        public void Initialize() 
+        {
+            Destination = Test_Setup.GetNewTempPath();
+        }
+
+        [TestCleanup]
+        public void Cleanup()
+        {
+            try { Directory.Delete(Destination, true); } catch { }
+        }
+
         [TestMethod]
         [Timeout(5000, CooperativeCancellation = true)]
         public async Task TestCopyOperation()
         {
-            string destination = TestPrep.GetRandomPath(true);
-            try
-            {
-                Test_Setup.ClearOutTestDestination();
-                var source = Test_Setup.GenerateCommand(true, false);
-                var root = new DirectoryPair(source.CopyOptions.Source, destination);
-                var files = root.EnumerateSourceFilePairs(FilePair.CreatePair).ToArray();
-                var cmd = new BatchCommand(new StreamedCopierFactory());
-                cmd.LoggingOptions.IncludeFullPathNames = true;
-                cmd.Configuration.EnableFileLogging = true;
-                cmd.AddCopiers(files);
-                var results = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
-                Test_Setup.WriteLogLines(results.Results);
-                Assert.AreEqual(files.Count(), results.Results.FilesStatistic.Copied); // expect 4
-            }
-            finally
-            {
-                Directory.Delete(destination, true);
-            }
+            var root = new DirectoryPair(Test_Setup.Source_LargerNewer, Destination);
+            var files = root.EnumerateSourceFilePairs(FilePair.CreatePair).ToArray();
+            var cmd = new BatchCommand(new StreamedCopierFactory());
+            cmd.LoggingOptions.IncludeFullPathNames = true;
+            cmd.Configuration.EnableFileLogging = true;
+            cmd.AddCopiers(files);
+            var results = await Test_Setup.RunTest(cmd, TestContext.CancellationToken);
+            Test_Setup.WriteLogLines(results.Results);
+            Assert.AreEqual(files.LongLength, results.Results.FilesStatistic.Copied); // expect 4
         }
         
         [TestMethod]
@@ -48,9 +52,7 @@ namespace RoboSharp.Extensions.Tests
         {
             CancellationTokenSource cToken = new CancellationTokenSource();
 
-            Test_Setup.ClearOutTestDestination();
-            var source = Test_Setup.GenerateCommand(true, false);
-            var root = new DirectoryPair(source.CopyOptions.Source, source.CopyOptions.Destination);
+            var root = new DirectoryPair(Test_Setup.Source_LargerNewer, Destination);
             var files = root.EnumerateSourceFilePairs(FilePair.CreatePair).ToArray();
             var cmd = new BatchCommand(new StreamedCopierFactory());
             cmd.Configuration.EnableFileLogging = true;

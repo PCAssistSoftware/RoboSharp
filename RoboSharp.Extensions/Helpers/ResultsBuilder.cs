@@ -221,7 +221,7 @@ namespace RoboSharp.Extensions.Helpers
         public virtual void AddFileSkipped(ProcessedFileInfo file)
         {
             ProgressEstimator.AddFileSkipped(file);
-            if (Command.LoggingOptions.VerboseOutput)
+            if (Command.LoggingOptions.VerboseOutput || Command.LoggingOptions.ReportExtraFiles)
                 LogFileInfo(file);
         }
 
@@ -254,6 +254,7 @@ namespace RoboSharp.Extensions.Helpers
         {
             //Check to log the directory listing
             if (Command.LoggingOptions.NoDirectoryList) return;
+            if (!Command.LoggingOptions.VerboseOutput && Command.SelectionOptions.ExcludeLonely && dir.GetProcessedDirectoryFlag() == ProcessedDirectoryFlag.NewDir) return;
             WriteToLogs(dir.ToString(Command.LoggingOptions));
         }
 

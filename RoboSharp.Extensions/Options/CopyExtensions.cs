@@ -1,6 +1,7 @@
 ﻿using RoboSharp.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -32,8 +33,7 @@ namespace RoboSharp.Extensions.Options
         public static bool IsRecursive(this CopyActionFlags flag) =>
             flag.HasFlag(CopyActionFlags.CopySubdirectories) ||
             flag.HasFlag(CopyActionFlags.CopySubdirectoriesIncludingEmpty) ||
-            flag.HasFlag(CopyActionFlags.Mirror) ||
-            flag.HasFlag(CopyActionFlags.MoveFilesAndDirectories);
+            flag.HasFlag(CopyActionFlags.Mirror);
 
         /// <summary>
         /// Evaluates the <paramref name="options"/> to check if any of the options the recurse through subdirectories are enabled
@@ -50,11 +50,13 @@ namespace RoboSharp.Extensions.Options
             options.Mirror
             || options.CopySubdirectoriesIncludingEmpty
             || options.MoveFilesAndDirectories
-            ; 
+            ;
 
         /// <summary>
         /// Evaluates the <paramref name="flag"/> to check if any of the PURGE options are enabled
         /// </summary>
+        [Obsolete("Commands should only purge when SelectionOptions.ExcludeExtra is false. Prefer the IsPurging(IRoboCommand) overload.", false)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static bool IsPurging(this CopyActionFlags flag) =>
             flag.HasFlag(CopyActionFlags.Purge) ||
             flag.HasFlag(CopyActionFlags.Mirror);

@@ -245,7 +245,7 @@ namespace RoboSharp.Results
                     break;
 
                 case ProcessedDirectoryFlag.NewDir:
-                    whereTo = WhereToAdd.Copied;
+                    whereTo = Command.SelectionOptions.ExcludeLonely ? WhereToAdd.Skipped : WhereToAdd.Copied;
                     SetCurrentDir = true;
                     break;
 
@@ -274,7 +274,7 @@ namespace RoboSharp.Results
                 }
                 else if (currentDir.FileClass.Equals(Config.LogParsing_NewDir, StringComparison.CurrentCultureIgnoreCase))  //New Dir
                 {
-                    whereTo = WhereToAdd.Copied;
+                    whereTo = Command.SelectionOptions.ExcludeLonely ? WhereToAdd.Skipped : WhereToAdd.Copied;
                     SetCurrentDir = true;
                 }
                 else if (currentDir.FileClass.Equals(Config.LogParsing_ExtraDir, StringComparison.CurrentCultureIgnoreCase)) //Extra Dir

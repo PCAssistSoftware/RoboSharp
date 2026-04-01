@@ -307,13 +307,11 @@ namespace RoboSharp.Extensions
                 resultsBuilder.CreateHeader();
 
                 // ── process each directory ───────────────────────────────────────
-                await foreach ((DirectoryPair dirPair, HashSet<string> sourceDirs, int currentDepth) in EnumerateDirectoryPairsAsync(rootPair, 0, maxDepth, cancellationToken))
+                await foreach ((DirectoryPair dirPair, HashSet<string> sourceDirs, int currentDepth) in EnumerateDirectoryPairsAsync(rootPair, 1, maxDepth, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    bool shouldProcessDir = dirPair.EvaluateCommandOptions(this, GetDirectoryRegexes());
-
-                    if (!shouldProcessDir)
+                    if (!dirPair.EvaluateCommandOptions(this, GetDirectoryRegexes()))
                     {
                         resultsBuilder.AddDir(dirPair.ProcessedFileInfo);
                         OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
@@ -338,10 +336,13 @@ namespace RoboSharp.Extensions
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(dirPair.ProcessedFileInfo));
 
                     // Process Extras (files and directories in destination but not source)
-                    await ProcessExtras(dirPair, purging, resultsBuilder, destinationFiles, sourceFiles, sourceDirs, destinationDirs, cancellationToken).ConfigureAwait(false);
+                    if (destinationFiles.Count > 0 || destinationDirs.Count > 0)
+                    {
+                        await ProcessExtras(dirPair, purging, resultsBuilder, destinationFiles, sourceFiles, sourceDirs, destinationDirs, cancellationToken).ConfigureAwait(false);
+                    }
 
                     // ── Process Source files for copy/move ──────────────────────────────────────────────────
-                    if (currentDepth < maxDepth && dirPair.Source.Exists)
+                    if (currentDepth <= maxDepth && dirPair.Source.Exists)
                     {
                         if (!listOnly && (includeEmptyDirs || dirPair.ProcessedFileInfo.Size > 0))
                             dirPair.Destination.Create();
@@ -454,6 +455,14 @@ namespace RoboSharp.Extensions
             bool recursivePurge = CopyOptions.Mirror || (CopyOptions.Purge && (CopyOptions.CopySubdirectories || CopyOptions.CopySubdirectoriesIncludingEmpty));
             foreach (var child in root.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
             {
+                // ignore logging path
+                if (child.FullName.Equals(LoggingOptions.LogPath, comparisonType: StringComparison.InvariantCultureIgnoreCase)
+                    || child.FullName.Equals(LoggingOptions.UnicodeLogPath, comparisonType: StringComparison.InvariantCultureIgnoreCase)
+                    || child.FullName.Equals(LoggingOptions.AppendLogPath, comparisonType: StringComparison.InvariantCultureIgnoreCase)
+                    || child.FullName.Equals(LoggingOptions.AppendUnicodeLogPath, comparisonType: StringComparison.InvariantCultureIgnoreCase)
+                    ) 
+                    continue;
+
                 if (LoggingOptions.ReportExtraFiles || recursivePurge || MatchesFileFilters(fileFilters, child.FullName))
                     fileSet.Add(child.Name);
             }
@@ -568,9 +577,10 @@ namespace RoboSharp.Extensions
                 var set = children.Select(Path.GetFileName).ToHashSet();
                 return (children, set);
             }, cancellationToken);
+
             yield return (root, subDirs.set, currentDepth);
 
-            if (currentDepth >= maxDepth -1)
+            if (currentDepth >= maxDepth && SelectionOptions.ExcludeLonely == false)
                 yield break;
 
             foreach (string sourceSubDir in subDirs.children)
@@ -586,6 +596,14 @@ namespace RoboSharp.Extensions
                 // Adjust to however your IDirectoryPair is constructed
                 var subPair = new DirectoryPair(sourceSubDir, destSubDir);
 
+                // accomodates reporting of extra directories without recursing into them
+                if (SelectionOptions.ExcludeLonely && subPair.IsLonely())
+                {
+                    yield return (subPair, [], currentDepth + 1);
+                    continue;
+                }
+
+                // recurse into the child directory
                 await foreach (var child in EnumerateDirectoryPairsAsync(subPair, currentDepth + 1, maxDepth, cancellationToken))
                 {
                     yield return child;

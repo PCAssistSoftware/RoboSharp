@@ -23,9 +23,9 @@ namespace RoboSharp.Extensions.Options.UnitTests
         {
             var opt = new CopyOptions();
             opt.ApplyActionFlags(flags);
-            Assert.AreEqual(expected, CopyExtensions.IsRecursive(opt), "CopyOptions Extension method Failed");
-            Assert.AreEqual(expected, CopyExtensions.IsRecursive(flags), "Flags extension method Failed");
-            Assert.AreEqual(expected, CopyExtensions.IsRecursive(opt.GetCopyActionFlags()), "CopyOptions.GetCopyActionFlags() method Failed");
+            Assert.AreEqual(expected, CopyExtensions.IsRecursive(opt), "\n >> CopyOptions Extension method Failed");
+            Assert.AreEqual(expected, CopyExtensions.IsRecursive(flags), "\n >> Flags extension method Failed");
+            Assert.AreEqual(expected, CopyExtensions.IsRecursive(opt.GetCopyActionFlags()), "\n >> CopyOptions.GetCopyActionFlags() method Failed");
         }
     }
 }
