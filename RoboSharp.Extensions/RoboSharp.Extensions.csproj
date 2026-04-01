@@ -11,7 +11,7 @@
       <NetFrameworkRegex><![CDATA[^net((4[5-8][0-2]?)|(.*2.0))$]]></NetFrameworkRegex>
       <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
       
-      <Version>1.6.2</Version>
+      <Version>1.6.3</Version>
       <Copyright>Copyright 2025</Copyright>
       <Authors>Robert Brenckman</Authors>
       <owners>Terry | PC Assist Software | Robert Brenckman</owners>
@@ -29,6 +29,10 @@
           - The AbstractIRoboCommand object should be used as the base for any custom IRoboCommands, as it provided the basic functionality. 
           - Included is a ResultsBuilder and a PairEvaluator object to easily evaluate the Source/Destination file/directory pairs. 
           
+		  RoboCommandPortable
+		   - This IRoboCommand is cross platform for .net8.0 targets!
+		   - Fully managed recreation of RoboCopy, uses IFileCopierFactory to allow consumers to specify how the actual copy operation should be performed.
+		  
           RoboMover - This is a prebuilt IRoboCommand that is designed to move (not copy) files faster than RoboCopy, if the files are on the same root drive.
            - Robocopy will copy the file to the destination then delete from source, which is time consuming for large files being moved into a subfolder of the one they already reside in for example. 
            - RoboMover will instead use File.Move() to simply move the file into the new directory, instead of wasting time copying then deleting, greatly improving throughput.
