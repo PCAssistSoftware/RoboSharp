@@ -138,7 +138,6 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         {
             if (!VersionManager.IsPlatformWindows) return;
 
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
             string sourceFile = Source;
             string destFolder = Destination;
             string destFile = Path.Combine(destFolder, "Target.txt");

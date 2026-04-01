@@ -60,9 +60,21 @@ jobs:
         dotnet pack ./RoboSharp.Extensions/RoboSharp.Extensions.csproj --configuration Release --no-build --output ./artifacts
         dotnet publish ./Robosharp.ConsoleApp/Robosharp.ConsoleApp.csproj --configuration Release --no-build --output ./artifacts/ConsoleApp
         dotnet publish ./RoboSharp.BackupApp/RoboSharp.BackupApp.csproj --configuration Release --no-build --output ./artifacts/BackupApp --framework net10.0-Windows
-        
-    - name: Upload Artifacts
+    
+    - name: Upload Nuget Packages
       uses: actions/upload-artifact@v6
       with:
-        name: nuget-packages
-        path: ./artifacts/**
+        name: RoboSharpNugetPackages
+        path: artifacts/*nupkg
+
+    - name: Upload Console App
+      uses: actions/upload-artifact@v6
+      with:
+        name: RoboSharp_ConsoleApp
+        path: ./artifacts/ConsoleApp/*
+    
+    - name: Upload Backup App
+      uses: actions/upload-artifact@v6
+      with:
+        name: RoboSharp_BackupApp
+        path: ./artifacts/BackupApp/*

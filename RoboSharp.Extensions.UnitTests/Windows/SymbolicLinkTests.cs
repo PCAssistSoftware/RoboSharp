@@ -19,6 +19,8 @@ namespace RoboSharp.Extensions.Windows.UnitTests
         const string ERD = "\n>>\t";
         static string RandomName() => Path.GetFileNameWithoutExtension(Path.GetRandomFileName());
 
+        public TestContext TestContext { get; set;  }
+
         [TestInitialize]
         public void Initialize_SymbolicLinkTest()
         {
@@ -28,7 +30,7 @@ namespace RoboSharp.Extensions.Windows.UnitTests
                 return;
             }
             Console.WriteLine("----------------------\n THIS TEST REQUIRES ADMIN PRIVILEGES (OR DEVELOPER-MODE ENABLED) AT RUN-TIME ");
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
+            RoboSharp.UnitTests.Test_Setup.PrintEnvironment(TestContext);
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(TargetRoot);
             SymbolicLink.ALLOW_UNPRIVILEGED_CREATE = true;

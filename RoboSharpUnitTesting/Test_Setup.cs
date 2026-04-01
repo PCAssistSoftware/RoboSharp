@@ -1,4 +1,5 @@
-﻿using RoboSharp;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using RoboSharp;
 using RoboSharp.Interfaces;
 using RoboSharp.Results;
 using System;
@@ -19,12 +20,13 @@ namespace RoboSharp.UnitTests
         public static string Source_LargerNewer { get; } = Path.Combine(TestFileRoot, "LargerNewer");
         public static string Source_Standard { get; } = Path.Combine(TestFileRoot, "STANDARD");
 
-        public static void PrintEnvironment()
+        public static void PrintEnvironment(TestContext context)
         {
             var assy = System.Reflection.Assembly.GetExecutingAssembly();
             var env = assy.GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>();
-            string div = "----------------------";
-            Console.WriteLine($"{div}\nEnvironment : {env.FrameworkName} {env.FrameworkDisplayName} : \nImageRuntimeVersion:{assy.ImageRuntimeVersion}\n{div}\n");
+            const string div = "----------------------";
+            const string format = $"\n{div}\nEnvironment : {{0}} {{1}} : ImageRuntimeVersion: {{2}} \n Test Class : {{3}}\nTest Method : {{4}}\nDisplay Name: {{5}}\n{div}";
+            Console.WriteLine(string.Format(format, env.FrameworkName, env.FrameworkDisplayName, assy.ImageRuntimeVersion, context?.FullyQualifiedTestClassName, context?.TestName, context?.TestDisplayName));
         }
 
         /// <summary>

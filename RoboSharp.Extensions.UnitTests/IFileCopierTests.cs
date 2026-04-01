@@ -47,7 +47,7 @@ namespace RoboSharp.Extensions.Tests
         [TestInitialize]
         public void Initialize()
         {
-            RoboSharp.UnitTests.Test_Setup.PrintEnvironment();
+            Test_Setup.PrintEnvironment(TestContext);
             Source = Test_Setup.GetNewTempPath();
             Destination = Test_Setup.GetNewTempPath();
         }
@@ -150,7 +150,7 @@ namespace RoboSharp.Extensions.Tests
         {
             TFactory factory = GetFactory();
             Console.WriteLine($"IFileCopierFactory Type : {factory.GetType()}");
-            Test_Setup.PrintEnvironment();
+            
             FileInfo source = new FileInfo(Source);
             FileInfo dest = new FileInfo(Destination);
 
