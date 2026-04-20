@@ -268,6 +268,10 @@
                                             <RowDefinition />
                                             <RowDefinition />
                                             <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
                                         </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -279,6 +283,10 @@
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="No File Size (/NS)" />
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="No Progress (/NP)" />
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="List Only (/L)" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Log Path" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Append Log Path" />
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Unicode Log Path" />
+                                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Unicode Append Log Path  " />
 
                                         <GridSplitter Width="5" Grid.Row="0" Grid.RowSpan="100" Grid.Column="1" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" />
 
@@ -286,6 +294,10 @@
                                         <CheckBox Grid.Row="1" Grid.Column="2" Margin="10,0,0,0" IsChecked="{Binding NoFileSizes}"/>
                                         <CheckBox Grid.Row="2" Grid.Column="2" Margin="10,0,0,0" IsChecked="{Binding NoProgress}"/>
                                         <CheckBox Grid.Row="3" Grid.Column="2" Margin="10,0,0,0" IsChecked="{Binding ListOnly}"/>
+                                        <TextBox Grid.Row="4" Grid.Column="2" Margin="10,0,0,0" Text="{Binding LogPath}"/>
+                                        <TextBox Grid.Row="5" Grid.Column="2" Margin="10,0,0,0" Text="{Binding AppendLogPath}"/>
+                                        <TextBox Grid.Row="6" Grid.Column="2" Margin="10,0,0,0" Text="{Binding UnicodeLogPath}"/>
+                                        <TextBox Grid.Row="7" Grid.Column="2" Margin="10,0,0,0" Text="{Binding AppendUnicodeLogPath}"/>
 
                                     </Grid>
                                 </Expander>
