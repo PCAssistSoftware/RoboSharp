@@ -326,7 +326,7 @@ namespace RoboSharp
         /// </summary>
         public string LogParsing_ExistingDir
         {
-            get { return existingDirToken ?? GetDefaultConfiguration().existingDirToken ?? ""; }
+            get { return existingDirToken ?? GetDefaultConfiguration().existingDirToken ?? "Existing Dir"; }
             set { existingDirToken = value; }
         }
         private string existingDirToken;
