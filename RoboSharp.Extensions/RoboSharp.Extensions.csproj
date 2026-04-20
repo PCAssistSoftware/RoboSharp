@@ -11,7 +11,7 @@
       <NetFrameworkRegex><![CDATA[^net((4[5-8][0-2]?)|(.*2.0))$]]></NetFrameworkRegex>
       <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
       
-      <Version>1.6.4.0</Version>
+      <Version>1.6.3.0</Version>
       <Copyright>Copyright 2025</Copyright>
       <Authors>Robert Brenckman</Authors>
       <owners>Terry | PC Assist Software | Robert Brenckman</owners>
