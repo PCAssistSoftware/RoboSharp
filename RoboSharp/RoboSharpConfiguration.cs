@@ -13,7 +13,7 @@ namespace RoboSharp
     /// <remarks>
     /// <see href="https://github.com/PCAssistSoftware/RoboSharp/wiki/RoboSharpConfiguration"/>
     /// </remarks>
-    public class RoboSharpConfiguration : ICloneable
+    public partial class RoboSharpConfiguration : ICloneable
     {
         // Perform any preliminary library setup
         static RoboSharpConfiguration()
@@ -399,7 +399,7 @@ namespace RoboSharp
             else
             {
                 // check for default with language Tag xx (e.g. en)
-                var match = Regex.Match(currentLanguageTag, @"^\w+", RegexOptions.Compiled);
+                var match = ConfigurationRegex().Match(currentLanguageTag);
                 if (match.Success)
                 {
                     var currentMainLanguageTag = match.Value;
@@ -413,6 +413,14 @@ namespace RoboSharp
             // no match, fallback to en
             return defaultConfig ?? defaultConfigurations["en"];
         }
+
+#if NET8_0_OR_GREATER
+        [GeneratedRegex(@"^\w+")]
+        private static partial Regex ConfigurationRegex();
+#else
+        private static Regex ConfigurationRegex() => _ConfigRegex;
+        private static readonly Regex _ConfigRegex = new Regex(@"^\w+", RegexOptions.Compiled);
+#endif
 
         #region < Helpers >
 
