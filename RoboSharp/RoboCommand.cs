@@ -26,7 +26,7 @@ namespace RoboSharp
         public static RoboCommandFactory Factory { get; } = new RoboCommandFactory();
 
         /// <summary>
-        /// char array used for splitting log lines for files and direcetory info
+        /// char array used for splitting log lines for files and directory info
         /// </summary>
         private static readonly char[] _OutputDataSplitter = new char[] { '\t' };
 
