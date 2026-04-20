@@ -33,7 +33,7 @@ namespace RoboSharp.DefaultConfigurations
 
             LogParsing_NewDir = "New Dir";
             LogParsing_ExtraDir = "*EXTRA Dir";
-            LogParsing_ExistingDir = "";
+            LogParsing_ExistingDir = "Existing Dir";
             LogParsing_DirectoryExclusion = "named";
         }
 

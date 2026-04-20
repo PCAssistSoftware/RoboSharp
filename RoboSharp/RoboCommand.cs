@@ -25,6 +25,11 @@ namespace RoboSharp
         /// </summary>
         public static RoboCommandFactory Factory { get; } = new RoboCommandFactory();
 
+        /// <summary>
+        /// char array used for splitting log lines for files and direcetory info
+        /// </summary>
+        private static readonly char[] _OutputDataSplitter = new char[] { '\t' };
+
         #region < Constructors >
 
         /// <summary>Create a new RoboCommand object</summary>
@@ -158,8 +163,6 @@ namespace RoboSharp
         #endregion
 
         #region < Private Vars >
-
-        private static char[] _OutputDataSplitter; // Static array storage used for processing output data from robocopy - created on first run
 
         // set up in Constructor
         private CopyOptions copyOptions;
@@ -734,6 +737,64 @@ namespace RoboSharp
         internal static Regex Process_OutputDirectoryDataRegex() => _OutputDataRegex_Directory ??= new Regex(_outputDirectoryDataPattern, RegexOptions.Compiled | RegexOptions.ExplicitCapture, TimeSpan.FromMilliseconds(1000));
 #endif
 
+        /// <summary>
+        /// Processes a log line from RoboCopy and transforms it into a <see cref="ProcessedFileInfo"/> object that represents some file or directory.
+        /// </summary>
+        /// <param name="data">
+        /// the log line from robocopy that represents a file or directory
+        /// <para/> Expected Directory Format:<br/>{class}    {size}\t{path}
+        /// <para/> Expected File Format:<br/>{class}\t{size}\t{path}
+        /// </param>
+        /// <param name="configuration">The <see cref="RoboSharpConfiguration"/> to use when building the output <see cref="ProcessedFileInfo"/></param>
+        /// <returns>
+        /// a new <see cref="ProcessedFileInfo"/> object if succesfully parsed, otherwise <see langword="null"/>.
+        /// </returns>
+        public static ProcessedFileInfo? ParseFileorDirectory(string data, RoboSharpConfiguration configuration)
+        {
+            var splitData = data.Split(_OutputDataSplitter, StringSplitOptions.RemoveEmptyEntries);
+
+            if (splitData.Length == 2) // Directory
+            {
+                var dir = new ProcessedFileInfo
+                {
+                    FileClassType = FileClassType.NewDir
+                };
+
+                Match dirMatch = Process_OutputDirectoryDataRegex().Match(data);
+                if (dirMatch.Success)
+                {
+                    //New Method - Parsed using Regex
+                    GroupCollection MatchData = dirMatch.Groups;
+                    dir.FileClass = MatchData["Type"].Value.Trim();
+                    if (dir.FileClass == "") dir.FileClass = configuration.LogParsing_ExistingDir;
+                    dir.Size = long.TryParse(MatchData["FileCount"].Value, out long size) ? size : 0;
+                    dir.Name = MatchData["Path"].Value.Trim();
+                }
+                else
+                {
+                    //Old Method -> Left Intact for other language compatibilty / unforseen cases
+                    dir.FileClass = "New Dir";
+                    dir.Size = long.TryParse(splitData[0].Replace("New Dir", "").Trim(), out long size) ? size : 0;
+                    dir.Name = splitData[1];
+                }
+                dir.TrySetClassEnum(configuration);
+                return dir;
+            }
+            else if (splitData.Length == 3) // File
+            {
+                var file = new ProcessedFileInfo
+                {
+                    FileClass = splitData[0].Trim(),
+                    FileClassType = FileClassType.File,
+                    Size = long.TryParse(splitData[1], out long size) ? size : 0,
+                    Name = splitData[2]
+                };
+                file.TrySetClassEnum(configuration);
+                return file;
+            }
+            return null;
+        }
+
         /// <summary> React to Process.StandardOutput </summary>
         void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {
@@ -777,48 +838,18 @@ namespace RoboSharp
                 _resultsBuilder?.AddOutput(e.Data); 
 
                 //Parse the string to determine which event to raise
-                var splitData = data.Split(_OutputDataSplitter ??= new char[]{ '\t' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (splitData.Length == 2) // Directory
+                
+                if (ParseFileorDirectory(data, Configuration) is ProcessedFileInfo file)
                 {
-                    var file = new ProcessedFileInfo
+                    if (file.FileClassType == FileClassType.NewDir)
                     {
-                        FileClassType = FileClassType.NewDir
-                    };
-
-                    Match dirMatch = Process_OutputDirectoryDataRegex().Match(data);
-                    if (dirMatch.Success)
-                    {
-                        //New Method - Parsed using Regex
-                        GroupCollection MatchData = dirMatch.Groups;
-                        file.FileClass = MatchData["Type"].Value.Trim();
-                        if (file.FileClass == "") file.FileClass = configuration.LogParsing_ExistingDir;
-                        file.Size = long.TryParse(MatchData["FileCount"].Value, out long size) ? size : 0;
-                        file.Name = MatchData["Path"].Value.Trim();
+                        ProgressEstimator?.AddDir(file);
+                        OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
+                        return;
                     }
-                    else
-                    {
-                        //Old Method -> Left Intact for other language compatibilty / unforseen cases
-                        file.FileClass = "New Dir";
-                        file.Size = long.TryParse(splitData[0].Replace("New Dir", "").Trim(), out long size) ? size : 0;
-                        file.Name = splitData[1];
-                    }
-                    file.TrySetClassEnum(Configuration);
-                    ProgressEstimator?.AddDir(file);
-                    OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
-                }
-                else if (splitData.Length == 3) // File
-                {
-                    var file = new ProcessedFileInfo
-                    {
-                        FileClass = splitData[0].Trim(),
-                        FileClassType = FileClassType.File,
-                        Size = long.TryParse(splitData[1], out long size) ? size : 0,
-                        Name = splitData[2]
-                    };
-                    file.TrySetClassEnum(Configuration);
                     ProgressEstimator?.AddFile(file);
                     OnFileProcessed?.Invoke(this, new FileProcessedEventArgs(file));
+                    return;
                 }
                 else if (_lastErrorRegexMatch?.Success ?? false) // Error Message - Uses previous data instead since RoboCopy reports errors onto line 1, then description onto line 2.
                 {
@@ -827,6 +858,7 @@ namespace RoboSharp
                     _resultsBuilder.AddErrorOutput(lastData, data);
                     _resultsBuilder.RoboCopyErrors.Add(args);
                     OnError?.Invoke(this, args);
+                    return;
                 }
                 else if ((_lastErrorRegexMatch = Configuration.ErrorTokenRegex.Match(data)).Success) // Error Message - Mark the current file as FAILED immediately - Don't raise OnError event until error description comes in though
                 {

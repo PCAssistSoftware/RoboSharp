@@ -352,7 +352,7 @@ namespace RoboSharp
                 true when FileClass.Equals(config.LogParsing_MinFileSizeExclusion, comparison) => (int)ProcessedFileFlag.MinFileSizeExclusion,
                 true when FileClass.Equals(config.LogParsing_MismatchFile, comparison) => (int)ProcessedFileFlag.MisMatch,
                 true when FileClass.Equals(config.LogParsing_ModifiedInclusion, comparison) => (int)ProcessedFileFlag.ModifiedInclusion,
-                true when FileClass.Equals(config.LogParsing_NewerFile, comparison) => (int)ProcessedFileFlag.ModifiedInclusion,
+                true when FileClass.Equals(config.LogParsing_NewerFile, comparison) => (int)ProcessedFileFlag.NewerFile,
                 true when FileClass.Equals(config.LogParsing_NewFile, comparison) => (int)ProcessedFileFlag.NewFile,
                 true when FileClass.Equals(config.LogParsing_OlderFile, comparison) => (int)ProcessedFileFlag.OlderFile,
                 true when FileClass.Equals(config.LogParsing_SameFile, comparison) => (int)ProcessedFileFlag.SameFile,
