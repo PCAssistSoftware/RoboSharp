@@ -4,6 +4,9 @@ Thank you for taking the time to report a security issue.
 
 The security of RoboSharp and the applications that depend on it is important. If you believe you have discovered a security vulnerability, please report it responsibly.
 
+> [!NOTE]
+> RoboSharp is a free, open-source project maintained in my spare time. There is **no warranty**, **no paid support**, and **no guaranteed response time**. I do my best to address security issues, but please understand that fixes depend on my available free time.
+
 ## Supported Versions
 
 Security fixes are only provided for the latest stable release.
